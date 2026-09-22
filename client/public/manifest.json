@@ -1,0 +1,20 @@
+{
+  "name": "منظومة إدارة مكتب المحاماة",
+  "short_name": "مكتب المحاماة",
+  "description": "نظام شامل لإدارة القضايا، الموكلين، الجلسات، الفواتير، والمستندات القانونية",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#d4a853",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

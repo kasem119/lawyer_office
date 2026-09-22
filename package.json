@@ -1,0 +1,19 @@
+{
+  "name": "lawyer-office-system",
+  "version": "1.0.0",
+  "description": "منظومة إدارة مكتب محاماة متكاملة - Law Office Management System",
+  "private": true,
+  "scripts": {
+    "start:server": "cd server && npm start",
+    "start:client": "cd client && npm run dev",
+    "start:tray": "cd server && npm run tray",
+    "electron:client": "cd client && npm run electron:dev",
+    "build:client": "cd client && npm run build",
+    "dist:win": "cd client && npm run dist:win",
+    "dist:portable": "cd client && npm run dist:portable",
+    "setup:firewall": "powershell -ExecutionPolicy Bypass -File server/scripts/setup-firewall.ps1",
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "service:install": "cd server && npm run service:install",
+    "service:uninstall": "cd server && npm run service:uninstall"
+  }
+}

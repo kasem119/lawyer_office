@@ -1,0 +1,34 @@
+<service>
+	<id>lawyerofficeserver.exe</id>
+	<name>LawyerOfficeServer</name>
+	<description>خدمة خادم منظومة مكتب المحاماة - Lawyer Office Management Server</description>
+	<executable>C:\Program Files\nodejs\node.exe</executable>
+	<argument>--harmony</argument>
+	<argument>C:\Users\Z10\OneDrive\Desktop\lawyer_office\server\node_modules\node-windows\lib\wrapper.js</argument>
+	<argument>--file</argument>
+	<argument>C:\Users\Z10\OneDrive\Desktop\lawyer_office\server\index.js</argument>
+	<argument>--scriptoptions=</argument>
+	<argument>--log</argument>
+	<argument>LawyerOfficeServer wrapper</argument>
+	<argument>--grow</argument>
+	<argument>0.25</argument>
+	<argument>--wait</argument>
+	<argument>2</argument>
+	<argument>--maxrestarts</argument>
+	<argument>10</argument>
+	<argument>--abortonerror</argument>
+	<argument>n</argument>
+	<argument>--stopparentfirst</argument>
+	<argument>undefined</argument>
+	<logmode>rotate</logmode>
+	<stoptimeout>30sec</stoptimeout>
+	<env name="NODE_ENV" value="production"/>
+	<env name="HOST" value="0.0.0.0"/>
+	<env name="PORT" value="3000"/>
+	<serviceaccount>
+		<domain>LAPTOP-H1LH4Q5G</domain>
+		<user>LocalSystem</user>
+		<password></password>
+	</serviceaccount>
+	<workingdirectory>C:\Users\Z10\OneDrive\Desktop\lawyer_office\server</workingdirectory>
+</service>

@@ -1,0 +1,36 @@
+# Environment files & secrets
+.env
+.env.*
+!.env.example
+server/.env
+server/.env.*
+!server/.env.example
+
+# Database files & SQLite WAL/SHM
+*.db
+*.db-shm
+*.db-wal
+*.sqlite*
+
+# Runtime uploads and backups data
+/uploads/
+/backups/
+server/uploads/
+server/backups/
+
+# Dependencies & Build outputs
+node_modules/
+dist/
+build/
+client/dist/
+client/release/
+release/
+
+# Large installers / binaries
+*.exe.blockmap
+builder-debug.yml
+
+# Logs & OS metadata
+*.log
+.DS_Store
+Thumbs.db

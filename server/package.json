@@ -1,0 +1,49 @@
+{
+  "name": "lawyer-office-server",
+  "version": "1.0.0",
+  "description": "خادم منظومة مكتب المحاماة - Server API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "seed": "node database/seed.js",
+    "tray": "electron trayApp.js",
+    "service:install": "node windowsService.js install",
+    "service:uninstall": "node windowsService.js uninstall",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --forceExit"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {
+      "^.+\\.[tj]sx?$": "babel-jest"
+    },
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "node-windows": "^1.0.0-beta.8",
+    "nodemailer": "^10.0.9",
+    "puppeteer": "^25.10.0",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^8.0.1",
+    "@babel/plugin-syntax-import-meta": "^7.10.4",
+    "@babel/preset-env": "^8.0.2",
+    "babel-jest": "^30.4.1",
+    "electron": "^44.3.0",
+    "jest": "^29.0.0",
+    "supertest": "^6.3.0"
+  }
+}
