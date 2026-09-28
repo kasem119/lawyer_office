@@ -36,12 +36,18 @@ export default function ServerConnect({ onConnected }) {
       }
     }
 
-    // 2. Browser fallback: probe localhost, current origin, and 127.0.0.1
+    // 2. Browser fallback: current site first (website / LAN), then local server
+    const origin = window.location?.protocol?.startsWith('http') ? window.location.origin : '';
+    const hostApi =
+      window.location.hostname && window.location.port !== '3000'
+        ? `http://${window.location.hostname}:3000`
+        : '';
     const candidates = [
+      origin,
+      hostApi,
       'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      ...(window.location.port !== '3000' && window.location.hostname ? [`http://${window.location.hostname}:3000`] : [])
-    ];
+      'http://127.0.0.1:3000'
+    ].filter((value, index, list) => value && list.indexOf(value) === index);
 
     for (const candidate of candidates) {
       try {

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiFetch } from '../api/client';
+import { apiFetch, getServerUrl } from '../api/client';
 import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
@@ -35,13 +35,11 @@ export function NotificationProvider({ children }) {
 
     function connectWS() {
       try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname || 'localhost';
-        // Check if port is 5173 (dev client), connect to backend port 3000
-        const port = window.location.port === '5173' ? '3000' : (window.location.port || '3000');
-        const token = localStorage.getItem('token') || '';
-        
-        ws = new WebSocket(`${protocol}//${host}:${port}/ws?token=${encodeURIComponent(token)}`);
+        const apiBase = new URL(getServerUrl() || window.location.origin);
+        const protocol = apiBase.protocol === 'https:' ? 'wss:' : 'ws:';
+        const token = localStorage.getItem('access_token') || '';
+
+        ws = new WebSocket(`${protocol}//${apiBase.host}/ws?token=${encodeURIComponent(token)}`);
 
         ws.onmessage = (event) => {
           try {

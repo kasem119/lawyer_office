@@ -14,14 +14,16 @@ if (-not $isAdmin) {
 }
 
 $RuleName = "LawyerOffice-Server-Port3000"
+$DevRuleName = "LawyerOffice-Vite-Port5173"
 $UdpRuleName = "LawyerOffice-Discovery-Port41234"
 
 try {
     Remove-NetFirewallRule -DisplayName $RuleName -ErrorAction SilentlyContinue
+    Remove-NetFirewallRule -DisplayName $DevRuleName -ErrorAction SilentlyContinue
     Remove-NetFirewallRule -DisplayName $UdpRuleName -ErrorAction SilentlyContinue
 } catch {}
 
-Write-Host "[1/2] Opening TCP port 3000 for LAN devices..." -ForegroundColor Green
+Write-Host "[1/3] Opening TCP port 3000 for the website and API..." -ForegroundColor Green
 New-NetFirewallRule -DisplayName $RuleName `
                     -Description "Lawyer Office Management Server HTTP/API Port" `
                     -Direction Inbound `
@@ -31,7 +33,17 @@ New-NetFirewallRule -DisplayName $RuleName `
                     -Profile Private,Domain `
                     -Enabled True | Out-Null
 
-Write-Host "[2/2] Opening UDP port 41234 for LAN auto-discovery..." -ForegroundColor Green
+Write-Host "[2/3] Opening TCP port 5173 for Vite development (optional)..." -ForegroundColor Green
+New-NetFirewallRule -DisplayName $DevRuleName `
+                    -Description "Lawyer Office Vite Dev Server" `
+                    -Direction Inbound `
+                    -Action Allow `
+                    -Protocol TCP `
+                    -LocalPort 5173 `
+                    -Profile Private,Domain `
+                    -Enabled True | Out-Null
+
+Write-Host "[3/3] Opening UDP port 41234 for LAN auto-discovery..." -ForegroundColor Green
 New-NetFirewallRule -DisplayName $UdpRuleName `
                     -Description "Lawyer Office Management Server Discovery Port" `
                     -Direction Inbound `

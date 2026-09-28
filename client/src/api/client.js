@@ -1,13 +1,54 @@
-let serverUrl = (localStorage.getItem('server_url') || 'http://localhost:3000')
-  .trim()
-  .replace(/\/+$/, '')
-  .replace(/\/api\/?$/, '');
-
-export function setServerUrl(url) {
-  serverUrl = (url || 'http://localhost:3000')
+function normalizeServerUrl(url) {
+  return (url || 'http://localhost:3000')
     .trim()
     .replace(/\/+$/, '')
     .replace(/\/api\/?$/, '');
+}
+
+function isLocalhostUrl(url) {
+  try {
+    const host = new URL(url).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  } catch {
+    return /localhost|127\.0\.0\.1/.test(url || '');
+  }
+}
+
+function pageOrigin() {
+  if (typeof window === 'undefined' || !window.location?.protocol?.startsWith('http')) {
+    return '';
+  }
+  return window.location.origin;
+}
+
+function defaultServerUrl() {
+  const stored = localStorage.getItem('server_url');
+  const origin = pageOrigin();
+  const pageHost = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  if (stored) {
+    const cleaned = normalizeServerUrl(stored);
+    const staleLocalhost =
+      isLocalhostUrl(cleaned) &&
+      pageHost &&
+      pageHost !== 'localhost' &&
+      pageHost !== '127.0.0.1' &&
+      pageHost !== '::1';
+    if (!staleLocalhost) {
+      return cleaned;
+    }
+  }
+
+  if (origin) {
+    return origin;
+  }
+  return 'http://localhost:3000';
+}
+
+let serverUrl = defaultServerUrl();
+
+export function setServerUrl(url) {
+  serverUrl = normalizeServerUrl(url);
   localStorage.setItem('server_url', serverUrl);
 }
 
@@ -35,11 +76,7 @@ export async function apiFetch(endpoint, options = {}) {
     headers
   };
 
-  // Normalize endpoint to prevent duplicate /api or missing slashes
-  const baseUrl = (serverUrl || 'http://localhost:3000')
-    .trim()
-    .replace(/\/+$/, '')
-    .replace(/\/api\/?$/, '');
+  const baseUrl = normalizeServerUrl(serverUrl);
 
   let cleanPath = endpoint;
   if (cleanPath.startsWith(baseUrl)) {

@@ -43,6 +43,16 @@ cp .env.example .env
 ```
 ثم قم بتعديل المفاتيح السرية (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY`) بقيم قوية وفريدة.
 
+المساعد القانوني يعمل بقوالب محلية بدون إنترنت. لتوصيله بنموذج لغوي مجاني (OpenAI-compatible) من [قائمة الواجهات المجانية](https://github.com/open-free-llm-api/awesome-freellm-apis)، أضف في `server/.env` مثلاً مفتاح [Groq](https://console.groq.com/keys):
+
+```
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=your_key_here
+LLM_MODEL=llama-3.3-70b-versatile
+```
+
+لا تضع بيانات قضايا سرية على مزود غير موثوق. إذا فشل الاتصال يعود النظام للقوالب المحلية.
+
 ### 4. تشغيل النظام (Running the Application)
 
 - **تشغيل الخادم (Server):**
@@ -55,6 +65,19 @@ cp .env.example .env
   ```bash
   npm run start:client
   ```
+
+- **تشغيل الموقع لأجهزة المكتب (موقع ويب على الشبكة المحلية):**
+  1. على جهاز الخادم افتح جدار الحماية مرة واحدة:
+     ```bash
+     npm run setup:firewall
+     ```
+  2. ابنِ الواجهة وشغّل الخادم (موقع واحد على المنفذ 3000):
+     ```bash
+     npm run start:web
+     ```
+  3. من الهاتف أو أي جهاز على نفس شبكة الـ Wi‑Fi افتح المتصفح على العنوان الذي يطبعه الخادم، مثل:
+     `http://192.168.1.50:3000`
+     (استبدل الرقم بعنوان IP الظاهر في نافذة الخادم.)
 
 - **تشغيل تطبيق سطح المكتب (Electron):**
   ```bash

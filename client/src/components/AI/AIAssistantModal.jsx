@@ -204,6 +204,12 @@ export default function AIAssistantModal({ isOpen, onClose, defaultCaseId = null
                 <span><strong>توجيه مهني:</strong> {response.advice}</span>
               </div>
             )}
+
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              {response.source === 'llm'
+                ? `مصدر الإجابة: نموذج لغوي (${response.model || 'LLM'}) — للمراجعة المهنية قبل الاعتماد.`
+                : 'مصدر الإجابة: قوالب المكتب المحلية (لم يُضبط مفتاح LLM).'}
+            </div>
           </div>
         )}
       </div>

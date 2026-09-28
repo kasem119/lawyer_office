@@ -6,6 +6,7 @@
   "scripts": {
     "start:server": "cd server && npm start",
     "start:client": "cd client && npm run dev",
+    "start:web": "npm run build:client && npm run start:server",
     "start:tray": "cd server && npm run tray",
     "electron:client": "cd client && npm run electron:dev",
     "build:client": "cd client && npm run build",
