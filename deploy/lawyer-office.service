@@ -1,0 +1,25 @@
+[Unit]
+Description=Lawyer Office Management Server (منظومة مكتب المحاماة)
+After=network.target
+
+[Service]
+Type=simple
+# عدّل اسم المستخدم إذا أنشأت مستخدماً مخصصاً للخدمة
+User=lawyer
+WorkingDirectory=/opt/lawyer_office/server
+ExecStart=/usr/bin/node index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+
+# تشغيل بصلاحيات محدودة
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/lawyer_office/server
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

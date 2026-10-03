@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import OfflineBanner from './OfflineBanner';
+import UpdateBanner from '../Shared/UpdateBanner';
 
 export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavigate, children }) {
   // Collapse state stored in localStorage
@@ -32,6 +33,7 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
         backgroundColor: 'var(--bg-dark)'
       }}
     >
+      <UpdateBanner />
       <OfflineBanner />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>

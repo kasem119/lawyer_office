@@ -605,6 +605,35 @@ textarea:focus-visible {
   .stat-card-grid {
     grid-template-columns: repeat(1, 1fr) !important;
   }
+
+  /* ===== تحسينات الجداول على الهاتف ===== */
+  table td, table th {
+    white-space: normal;
+  }
+
+  /* ===== النماذج المنبثقة تملأ الشاشة تقريباً على الهاتف ===== */
+  body > div[style*="position: fixed"],
+  body > div[style*="position:fixed"] {
+    padding: 10px !important;
+  }
+
+  /* ===== مساحة أقل للمحتوى الرئيسي ===== */
+  main {
+    padding: 14px !important;
+  }
+
+  /* ===== منع كسر تخطيط الحقول الطويلة ===== */
+  input, select, textarea {
+    max-width: 100%;
+  }
+
+  /* ===== حركة أضعف للمستخدمين الذين يفضلون تقليل الحركة ===== */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
 /* ==========================================================================

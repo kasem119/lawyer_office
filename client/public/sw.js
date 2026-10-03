@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lawyer-office-cache-v1';
+const CACHE_NAME = 'lawyer-office-cache-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,13 @@ self.addEventListener('install', (event) => {
     })
   );
   self.skipWaiting();
+});
+
+// السماح للتطبيق بطلب تفعيل النسخة الجديدة فوراً (زر "تحديث الآن")
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {

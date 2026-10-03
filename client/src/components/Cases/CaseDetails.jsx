@@ -26,6 +26,7 @@ export default function CaseDetails({ caseId, onBack }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedDocForVersions, setSelectedDocForVersions] = useState(null);
   const [selectedDocForShare, setSelectedDocForShare] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const fetchDetails = async () => {
     setLoading(true);
@@ -111,8 +112,6 @@ export default function CaseDetails({ caseId, onBack }) {
       alert(err.message || 'فشل حذف القضية');
     }
   };
-
-  const [exporting, setExporting] = useState(false);
 
   const handleExportPdf = async () => {
     setExporting(true);
