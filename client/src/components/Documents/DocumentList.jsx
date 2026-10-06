@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, History, Share2, Trash2 } from 'lucide-react';
+import { FileText, Download, History, Share2, Trash2, Upload } from 'lucide-react';
 import SearchBar from '../Shared/SearchBar';
 import DataTable from '../Shared/DataTable';
 import Button from '../Shared/Button';
 import Modal from '../Shared/Modal';
 import DocumentVersions from './DocumentVersions';
 import DocumentShare from './DocumentShare';
+import DocumentUpload from './DocumentUpload';
 import { apiFetch, getServerUrl } from '../../api/client';
 
 export default function DocumentList() {
@@ -15,6 +16,7 @@ export default function DocumentList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedDocForVersions, setSelectedDocForVersions] = useState(null);
   const [selectedDocForShare, setSelectedDocForShare] = useState(null);
 
@@ -56,8 +58,26 @@ export default function DocumentList() {
     fetchDocuments();
   }, [selectedCaseId, searchQuery]);
 
-  const handleDownload = (docId) => {
-    window.open(`${getServerUrl()}/api/documents/download/${docId}`, '_blank');
+  const handleDownload = async (docId, docName) => {
+    try {
+      const res = await apiFetch(`/documents/download/${docId}`);
+      if (!res.ok) {
+        alert('فشل تحميل المستند');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = docName || `document_${docId}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('حدث خطأ أثناء تحميل المستند');
+    }
   };
 
   const handleDelete = async (docId, docName) => {
@@ -122,7 +142,7 @@ export default function DocumentList() {
       header: 'إجراءات',
       render: (row) => (
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <Button variant="secondary" icon={Download} onClick={() => handleDownload(row.id)} style={{ padding: '4px 8px', fontSize: '0.78rem' }}>تحميل</Button>
+          <Button variant="secondary" icon={Download} onClick={() => handleDownload(row.id, row.original_name)} style={{ padding: '4px 8px', fontSize: '0.78rem' }}>تحميل</Button>
           <Button variant="secondary" icon={History} onClick={() => setSelectedDocForVersions(row)} style={{ padding: '4px 8px', fontSize: '0.78rem' }}>الإصدارات</Button>
           <Button variant="secondary" icon={Share2} onClick={() => setSelectedDocForShare(row)} style={{ padding: '4px 8px', fontSize: '0.78rem' }}>مشاركة</Button>
           <Button variant="danger" icon={Trash2} onClick={() => handleDelete(row.id, row.original_name)} style={{ padding: '4px 8px', fontSize: '0.78rem' }}>حذف</Button>
@@ -133,9 +153,14 @@ export default function DocumentList() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>متصفح الأرشيف والمستندات</h1>
-        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>استعراض ومشاركة وحذف وثائق قضايا المكتب بشكل موحد</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>متصفح الأرشيف والمستندات</h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>استعراض ومشاركة وحذف وتصوير وثائق قضايا المكتب بشكل موحد</p>
+        </div>
+        <Button icon={Upload} onClick={() => setIsUploadModalOpen(true)}>
+          إرفاق / تصوير مستند
+        </Button>
       </div>
 
       <div className="glass-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -155,6 +180,16 @@ export default function DocumentList() {
       <div className="glass-card" style={{ padding: '16px' }}>
         <DataTable columns={columns} data={documents} emptyMessage={loading ? 'جاري تحميل المستندات...' : 'لا توجد مستندات مسجلة'} />
       </div>
+
+      <Modal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} title="إرفاق أو تصوير مستند">
+        <DocumentUpload
+          caseId={selectedCaseId !== 'all' ? selectedCaseId : ''}
+          onUploaded={() => {
+            setIsUploadModalOpen(false);
+            fetchDocuments();
+          }}
+        />
+      </Modal>
 
       <Modal isOpen={!!selectedDocForVersions} onClose={() => setSelectedDocForVersions(null)} title="تاريخ إصدارات المستند">
         {selectedDocForVersions && <DocumentVersions document={selectedDocForVersions} onUpdated={fetchDocuments} />}

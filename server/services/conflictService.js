@@ -2,11 +2,11 @@ import db from '../database/db.js';
 import { decryptText, hashSearchTerm } from './encryptionService.js';
 
 /**
- * فحص تعارض المصالح الشامل:
- * 1. فحص اسم ورقم العميل مقابل العملاء الحاليين
- * 2. فحص اسم ورقم العميل مقابل الخصوم في القضايا السابقة
+ * فحص تعارض المصالح الشامل لكل مكتب مستقل (Tenant Isolated):
+ * 1. فحص اسم ورقم العميل مقابل العملاء الحاليين لنفس المكتب
+ * 2. فحص اسم ورقم العميل مقابل الخصوم في القضايا السابقة لنفس المكتب
  * 3. فحص اسم ورقم الخصم مقابل عملاء المكتب الحاليين والسابقين (تعارض صريح)
- * 4. فحص تشابه عناوين القضايا
+ * 4. فحص تشابه عناوين القضايا لنفس المكتب
  */
 export function checkConflict({
   clientName,
@@ -15,17 +15,18 @@ export function checkConflict({
   opponentName,
   opponentId,
   excludeClientId = null,
-  excludeCaseId = null
+  excludeCaseId = null,
+  tenantId = 1
 }) {
   const conflicts = [];
 
-  // 1. فحص الخصم مقابل عملاء المكتب الحاليين (التعارض القانوني الأهم!)
+  // 1. فحص الخصم مقابل عملاء المكتب الحاليين
   if (opponentName && opponentName.trim()) {
     const oppClean = opponentName.trim();
     const matchingClient = db.prepare(`
       SELECT id, name, phone, email FROM clients
-      WHERE name LIKE ? OR name LIKE ?
-    `).all(`%${oppClean}%`, oppClean);
+      WHERE tenant_id = ? AND (name LIKE ? OR name LIKE ?)
+    `).all(tenantId, `%${oppClean}%`, oppClean);
 
     if (matchingClient.length > 0) {
       conflicts.push({
@@ -37,14 +38,14 @@ export function checkConflict({
       });
     }
 
-    // فحص هل الخصم خصم في قضايا أخرى مما قد يشكل تضارباً
+    // فحص هل الخصم خصم في قضايا أخرى لنفس المكتب
     let casesQuery = `
       SELECT c.id, c.case_number, c.title, c.opponent_name, cl.name as client_name
       FROM cases c
       JOIN clients cl ON c.client_id = cl.id
-      WHERE c.opponent_name LIKE ?
+      WHERE c.tenant_id = ? AND c.opponent_name LIKE ?
     `;
-    const casesParams = [`%${oppClean}%`];
+    const casesParams = [tenantId, `%${oppClean}%`];
     if (excludeCaseId) {
       casesQuery += ` AND c.id != ?`;
       casesParams.push(excludeCaseId);
@@ -67,12 +68,12 @@ export function checkConflict({
     let matchedClient = null;
 
     if (oppHash) {
-      matchedClient = db.prepare('SELECT id, name, phone FROM clients WHERE national_id_hash = ?').get(oppHash);
+      matchedClient = db.prepare('SELECT id, name, phone FROM clients WHERE tenant_id = ? AND national_id_hash = ?').get(tenantId, oppHash);
     }
 
     // Fallback if hash was not populated
     if (!matchedClient) {
-      const allClients = db.prepare('SELECT id, name, national_id_encrypted FROM clients WHERE national_id_encrypted IS NOT NULL').all();
+      const allClients = db.prepare('SELECT id, name, national_id_encrypted FROM clients WHERE tenant_id = ? AND national_id_encrypted IS NOT NULL').all(tenantId);
       matchedClient = allClients.find(c => decryptText(c.national_id_encrypted) === opponentId.trim());
     }
 
@@ -91,9 +92,9 @@ export function checkConflict({
   if (clientName && clientName.trim()) {
     const cleanClient = clientName.trim();
 
-    // فحص تشابه الأسماء مع العملاء الآخرين
-    let nameQuery = `SELECT id, name, phone, email FROM clients WHERE (name LIKE ? OR name LIKE ?)`;
-    const nameParams = [`%${cleanClient}%`, cleanClient];
+    // فحص تشابه الأسماء مع العملاء الآخرين في المكتب
+    let nameQuery = `SELECT id, name, phone, email FROM clients WHERE tenant_id = ? AND (name LIKE ? OR name LIKE ?)`;
+    const nameParams = [tenantId, `%${cleanClient}%`, cleanClient];
     if (excludeClientId) {
       nameQuery += ` AND id != ?`;
       nameParams.push(excludeClientId);
@@ -115,8 +116,8 @@ export function checkConflict({
       SELECT c.id, c.case_number, c.title, c.opponent_name, cl.name as our_client_name
       FROM cases c
       JOIN clients cl ON c.client_id = cl.id
-      WHERE c.opponent_name LIKE ?
-    `).all(`%${cleanClient}%`);
+      WHERE c.tenant_id = ? AND c.opponent_name LIKE ?
+    `).all(tenantId, `%${cleanClient}%`);
 
     if (pastOpponentCase.length > 0) {
       conflicts.push({
@@ -135,8 +136,8 @@ export function checkConflict({
     let matchedClient = null;
 
     if (idHash) {
-      let hashQuery = 'SELECT id, name, phone FROM clients WHERE national_id_hash = ?';
-      const hashParams = [idHash];
+      let hashQuery = 'SELECT id, name, phone FROM clients WHERE tenant_id = ? AND national_id_hash = ?';
+      const hashParams = [tenantId, idHash];
       if (excludeClientId) {
         hashQuery += ' AND id != ?';
         hashParams.push(excludeClientId);
@@ -145,7 +146,7 @@ export function checkConflict({
     }
 
     if (!matchedClient) {
-      const allClients = db.prepare('SELECT id, name, national_id_encrypted FROM clients WHERE national_id_encrypted IS NOT NULL').all();
+      const allClients = db.prepare('SELECT id, name, national_id_encrypted FROM clients WHERE tenant_id = ? AND national_id_encrypted IS NOT NULL').all(tenantId);
       matchedClient = allClients.find(c => {
         if (excludeClientId && c.id === Number(excludeClientId)) return false;
         return decryptText(c.national_id_encrypted) === nationalId.trim();
@@ -162,13 +163,13 @@ export function checkConflict({
       });
     }
 
-    // فحص هل الرقم الوطني للعميل كان رقم خصم في قضية سابقة
+    // فحص هل الرقم الوطني للعميل كان رقم خصم في قضية سابقة لنفس المكتب
     const pastOpponentIdCase = db.prepare(`
       SELECT c.id, c.case_number, c.title, c.opponent_name, cl.name as our_client_name
       FROM cases c
       JOIN clients cl ON c.client_id = cl.id
-      WHERE c.opponent_id_number = ?
-    `).all(nationalId.trim());
+      WHERE c.tenant_id = ? AND c.opponent_id_number = ?
+    `).all(tenantId, nationalId.trim());
 
     if (pastOpponentIdCase.length > 0) {
       conflicts.push({
@@ -181,15 +182,15 @@ export function checkConflict({
     }
   }
 
-  // 5. فحص تشابه عنوان القضية
+  // 5. فحص تشابه عنوان القضية لنفس المكتب
   if (title && title.trim()) {
     let titleQuery = `
       SELECT cases.id, cases.case_number, cases.title, clients.name as client_name
       FROM cases
       JOIN clients ON cases.client_id = clients.id
-      WHERE cases.title LIKE ?
+      WHERE cases.tenant_id = ? AND cases.title LIKE ?
     `;
-    const titleParams = [`%${title.trim()}%`];
+    const titleParams = [tenantId, `%${title.trim()}%`];
     if (excludeCaseId) {
       titleQuery += ` AND cases.id != ?`;
       titleParams.push(excludeCaseId);

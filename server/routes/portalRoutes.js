@@ -75,7 +75,7 @@ router.get('/overview', authenticateClientToken, (req, res, next) => {
 
     // Cases
     const cases = db.prepare(`
-      SELECT c.id, c.case_number, c.title, c.case_type, c.status, c.court, c.opened_at,
+      SELECT c.id, c.case_number, c.title, c.case_type, c.status, c.court_name, c.opened_at,
              u.name as lead_lawyer_name
       FROM cases c
       LEFT JOIN users u ON c.lead_lawyer_id = u.id
@@ -102,13 +102,24 @@ router.get('/overview', authenticateClientToken, (req, res, next) => {
       ORDER BY i.created_at DESC
     `).all(clientId);
 
+    // Recent case updates (public notes)
+    const updates = db.prepare(`
+      SELECT cn.id, cn.content, cn.note_type, cn.created_at, c.case_number, c.title as case_title
+      FROM case_notes cn
+      JOIN cases c ON cn.case_id = c.id
+      WHERE c.client_id = ? AND cn.is_private = 0
+      ORDER BY cn.created_at DESC
+      LIMIT 15
+    `).all(clientId);
+
     res.json({
       success: true,
       data: {
         client: req.clientUser,
         cases,
         upcoming_events: events,
-        invoices
+        invoices,
+        recent_updates: updates
       }
     });
   } catch (err) {

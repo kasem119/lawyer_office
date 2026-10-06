@@ -1,7 +1,27 @@
-import React from 'react';
-import { Calendar as CalendarIcon, Clock, MapPin, Briefcase, Edit2, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar as CalendarIcon, Clock, MapPin, Briefcase, Edit2, Trash2, Bell } from 'lucide-react';
+import { apiFetch } from '../../api/client';
 
 export default function EventCard({ event, onEdit, onDelete }) {
+  const [reminding, setReminding] = useState(false);
+
+  const handleSendReminder = async () => {
+    setReminding(true);
+    try {
+      const res = await apiFetch(`/events/${event.id}/remind`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'تم إرسال التنبيه الفوري للمحامي بنجاح');
+      } else {
+        alert(data.message || 'فشل إرسال التنبيه');
+      }
+    } catch (err) {
+      alert('تعذر الاتصال بالخادم لإرسال التنبيه');
+    } finally {
+      setReminding(false);
+    }
+  };
+
   const typeMap = {
     court_date: { label: 'جلسة محكمة', color: 'var(--warning)', badgeClass: 'badge-pending' },
     meeting: { label: 'اجتماع', color: 'var(--info)', badgeClass: 'badge-medium' },
@@ -49,45 +69,69 @@ export default function EventCard({ event, onEdit, onDelete }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid var(--border-color)', paddingTop: '10px', marginTop: '12px' }}>
-        {onEdit && (
-          <button
-            onClick={() => onEdit(event)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '0.8rem',
-              fontWeight: '600'
-            }}
-          >
-            <Edit2 size={14} />
-            تعديل
-          </button>
-        )}
-        {onDelete && (
-          <button
-            onClick={() => onDelete(event)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--error)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '0.8rem',
-              fontWeight: '600'
-            }}
-          >
-            <Trash2 size={14} />
-            حذف
-          </button>
-        )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '10px', marginTop: '12px' }}>
+        <button
+          onClick={handleSendReminder}
+          disabled={reminding}
+          title="إرسال تذكير فوري للمحامي المكلف"
+          style={{
+            background: 'rgba(234, 179, 8, 0.1)',
+            border: '1px solid rgba(234, 179, 8, 0.3)',
+            borderRadius: '6px',
+            color: 'var(--warning)',
+            cursor: reminding ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            padding: '4px 8px',
+            fontSize: '0.78rem',
+            fontWeight: '600'
+          }}
+        >
+          <Bell size={13} />
+          {reminding ? 'جاري الإرسال...' : 'تذكير المحامي'}
+        </button>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {onEdit && (
+            <button
+              onClick={() => onEdit(event)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '0.8rem',
+                fontWeight: '600'
+              }}
+            >
+              <Edit2 size={14} />
+              تعديل
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={() => onDelete(event)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--error)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '0.8rem',
+                fontWeight: '600'
+              }}
+            >
+              <Trash2 size={14} />
+              حذف
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

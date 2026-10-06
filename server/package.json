@@ -11,7 +11,7 @@
     "tray": "electron trayApp.js",
     "service:install": "node windowsService.js install",
     "service:uninstall": "node windowsService.js uninstall",
-    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --forceExit"
+    "test": "npx cross-env SEED_DEMO_DATA=true node tests/run_tests.js"
   },
   "jest": {
     "testEnvironment": "node",

@@ -151,28 +151,28 @@ export default function InvoiceList() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-          <div className="glass-card" style={{ padding: '10px 18px', border: '1px solid var(--success)', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>إجمالي المبالغ المحصلة:</span>
-            <span style={{ color: 'var(--success)', fontWeight: '800', fontSize: '1.2rem' }}>{totalRevenue.toLocaleString()} د.ل</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="glass-card" style={{ padding: '8px 14px', border: '1px solid var(--success)', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>إجمالي المحصل:</span>
+            <span style={{ color: 'var(--success)', fontWeight: '800', fontSize: '1.1rem' }}>{totalRevenue.toLocaleString()} د.ل</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button icon={FileSpreadsheet} variant="secondary" onClick={handleExportList} disabled={exportingList}>
-            {exportingList ? 'جاري التصدير...' : 'تصدير التقرير المالي (Excel)'}
+            {exportingList ? '...' : 'Excel'}
           </Button>
-          <Button icon={Plus} onClick={() => setShowForm(true)}>إنشاء فاتورة جديدة</Button>
+          <Button icon={Plus} onClick={() => setShowForm(true)}>فاتورة جديدة</Button>
         </div>
       </div>
 
-      <div className="glass-card" style={{ padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
-        <label style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: '600' }}>تصفية حسب الحالة:</label>
+      <div className="glass-card" style={{ padding: '12px 14px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600', whiteSpace: 'nowrap' }}>تصفية الحالة:</label>
         <select 
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
           className="form-select"
-          style={{ width: 'auto', minWidth: '160px', padding: '6px 12px' }}
+          style={{ width: 'auto', minWidth: '140px', padding: '6px 10px', fontSize: '0.85rem' }}
         >
           <option value="all">جميع الحالات</option>
           <option value="draft">مسودة</option>

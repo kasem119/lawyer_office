@@ -41,14 +41,96 @@ if (fs.existsSync(schemaPath)) {
   }
 }
 
-// Step 2: Ensure schema column migrations for existing databases
+// Step 2: Ensure schema column migrations for existing databases & SaaS tables
 function runColumnMigrations() {
+  // Ensure SaaS tables exist
+  try {
+    rawDb.exec(`
+      CREATE TABLE IF NOT EXISTS tenants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        owner_name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        phone TEXT,
+        city TEXT,
+        plan TEXT NOT NULL DEFAULT 'trial',
+        status TEXT NOT NULL DEFAULT 'active',
+        trial_ends_at DATETIME,
+        subscription_ends_at DATETIME,
+        max_users INTEGER DEFAULT 3,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER NOT NULL,
+        plan TEXT NOT NULL,
+        period TEXT NOT NULL DEFAULT 'annual',
+        amount REAL NOT NULL DEFAULT 0,
+        currency TEXT DEFAULT 'LYD',
+        starts_at DATETIME NOT NULL,
+        ends_at DATETIME NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        notes TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS tenant_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        currency TEXT DEFAULT 'LYD',
+        payment_method TEXT NOT NULL,
+        reference_number TEXT,
+        receipt_image TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        notes TEXT,
+        confirmed_by TEXT,
+        confirmed_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE CASCADE
+      );
+    `);
+  } catch (e) {
+    console.warn('SaaS tables init warning:', e.message);
+  }
+
+  // Ensure default tenant #1 exists for existing/standalone offices
+  try {
+    const existingTenant = rawDb.prepare('SELECT id FROM tenants WHERE id = 1').get();
+    if (!existingTenant) {
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 365);
+      rawDb.prepare(`
+        INSERT INTO tenants (id, slug, name, owner_name, email, phone, city, plan, status, trial_ends_at, subscription_ends_at)
+        VALUES (1, 'default', 'المكتب الرئيسي للمحاماة', 'المدير العام', 'admin@lawyer-system.local', '0910000000', 'طرابلس', 'pro', 'active', ?, ?)
+      `).run(trialEnd.toISOString(), trialEnd.toISOString());
+    }
+  } catch (err) {
+    // Ignore if table/entry exists
+  }
+
   const migrations = [
     `ALTER TABLE cases ADD COLUMN opponent_name TEXT`,
     `ALTER TABLE cases ADD COLUMN opponent_id_number TEXT`,
     `ALTER TABLE cases ADD COLUMN opponent_lawyer TEXT`,
     `ALTER TABLE cases ADD COLUMN opponent_phone TEXT`,
-    `ALTER TABLE clients ADD COLUMN national_id_hash TEXT`
+    `ALTER TABLE clients ADD COLUMN national_id_hash TEXT`,
+    `ALTER TABLE users ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE clients ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE cases ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE documents ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE events ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE tasks ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE invoices ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE expenses ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE time_entries ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE case_notes ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE document_templates ADD COLUMN tenant_id INTEGER DEFAULT 1`,
+    `ALTER TABLE activity_log ADD COLUMN tenant_id INTEGER DEFAULT 1`
   ];
 
   for (const sql of migrations) {
@@ -57,6 +139,34 @@ function runColumnMigrations() {
     } catch {
       // Column already exists
     }
+  }
+
+  // Ensure users table allows 'super_admin'
+  try {
+    const tableSql = rawDb.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").get()?.sql || '';
+    if (tableSql.includes("CHECK (role IN ('admin', 'lawyer'))") || tableSql.includes("CHECK(role IN ('admin', 'lawyer'))")) {
+      rawDb.exec(`
+        PRAGMA foreign_keys=OFF;
+        CREATE TABLE users_migrated (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password_hash TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'lawyer' CHECK (role IN ('admin', 'lawyer', 'super_admin')),
+          phone TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          tenant_id INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO users_migrated (id, name, email, password_hash, role, phone, is_active, tenant_id, created_at)
+          SELECT id, name, email, password_hash, role, phone, is_active, COALESCE(tenant_id, 1), created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_migrated RENAME TO users;
+        PRAGMA foreign_keys=ON;
+      `);
+    }
+  } catch (err) {
+    console.warn('Users table migration warning:', err.message);
   }
 }
 runColumnMigrations();

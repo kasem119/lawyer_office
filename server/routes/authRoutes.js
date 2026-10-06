@@ -72,10 +72,6 @@ router.post('/login', validateLogin, (req, res, next) => {
 
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (!user) {
-      db.prepare(`
-        INSERT INTO activity_log (user_id, action, entity_type, details_json)
-        VALUES (?, ?, ?, ?)
-      `).run(1, 'FAILED_LOGIN', 'user', JSON.stringify({ email, reason: 'user_not_found' }));
       return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
     }
 
@@ -104,6 +100,10 @@ router.post('/login', validateLogin, (req, res, next) => {
       VALUES (?, ?, ?, ?)
     `).run(user.id, 'LOGIN', 'user', JSON.stringify({ email: user.email }));
 
+    const tenantId = user.tenant_id || 1;
+    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
+    const subscription = db.prepare('SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY id DESC LIMIT 1').get(tenantId);
+
     res.json({
       success: true,
       user: {
@@ -111,8 +111,11 @@ router.post('/login', validateLogin, (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        phone: user.phone
+        phone: user.phone,
+        tenant_id: tenantId
       },
+      tenant,
+      subscription,
       ...tokens
     });
   } catch (err) {
@@ -146,9 +149,17 @@ router.post('/refresh', (req, res, next) => {
   }
 });
 
+// POST /api/auth/logout
+router.post('/logout', (req, res) => {
+  res.json({ success: true, message: 'تم تسجيل الخروج بنجاح' });
+});
+
 // GET /api/auth/me
 router.get('/me', authenticateToken, (req, res) => {
-  res.json({ success: true, user: req.user });
+  const tenantId = req.user.tenant_id || 1;
+  const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
+  const subscription = db.prepare('SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY id DESC LIMIT 1').get(tenantId);
+  res.json({ success: true, user: req.user, tenant, subscription });
 });
 
 export default router;

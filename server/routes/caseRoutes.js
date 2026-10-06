@@ -9,9 +9,14 @@ import { canManageCase } from '../middleware/permissions.js';
 const router = express.Router();
 router.use(authenticateToken);
 
-// GET /api/cases - List cases (Admin sees all; lawyer sees lead/assigned cases)
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
+
+// GET /api/cases - List cases (Admin sees all of this tenant; lawyer sees lead/assigned cases)
 router.get('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     let cases;
     if (req.user.role === 'admin') {
       cases = db.prepare(`
@@ -19,8 +24,9 @@ router.get('/', (req, res, next) => {
         FROM cases c
         JOIN clients cl ON c.client_id = cl.id
         JOIN users u ON c.lead_lawyer_id = u.id
+        WHERE c.tenant_id = ?
         ORDER BY c.id DESC
-      `).all();
+      `).all(tenantId);
     } else {
       cases = db.prepare(`
         SELECT DISTINCT c.*, cl.name as client_name, u.name as lead_lawyer_name
@@ -28,9 +34,9 @@ router.get('/', (req, res, next) => {
         JOIN clients cl ON c.client_id = cl.id
         JOIN users u ON c.lead_lawyer_id = u.id
         LEFT JOIN case_lawyers claw ON claw.case_id = c.id
-        WHERE c.lead_lawyer_id = ? OR claw.user_id = ?
+        WHERE c.tenant_id = ? AND (c.lead_lawyer_id = ? OR claw.user_id = ?)
         ORDER BY c.id DESC
-      `).all(req.user.id, req.user.id);
+      `).all(tenantId, req.user.id, req.user.id);
     }
 
     res.json({ success: true, cases });
@@ -42,13 +48,14 @@ router.get('/', (req, res, next) => {
 // GET /api/cases/:id - Single case details, assigned lawyers, documents, events, tasks
 router.get('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const caseItem = db.prepare(`
       SELECT c.*, cl.name as client_name, cl.phone as client_phone, u.name as lead_lawyer_name
       FROM cases c
       JOIN clients cl ON c.client_id = cl.id
       JOIN users u ON c.lead_lawyer_id = u.id
-      WHERE c.id = ?
-    `).get(req.params.id);
+      WHERE c.id = ? AND c.tenant_id = ?
+    `).get(req.params.id, tenantId);
 
     if (!caseItem) return res.status(404).json({ message: 'القضية غير موجودة' });
 
@@ -56,11 +63,11 @@ router.get('/:id', (req, res, next) => {
     if (req.user.role !== 'admin') {
       const isAssigned = db.prepare(`
         SELECT 1 FROM case_lawyers WHERE case_id = ? AND user_id = ?
-        UNION SELECT 1 FROM cases WHERE id = ? AND lead_lawyer_id = ?
-      `).get(req.params.id, req.user.id, req.params.id, req.user.id);
+        UNION SELECT 1 FROM cases WHERE id = ? AND lead_lawyer_id = ? AND tenant_id = ?
+      `).get(req.params.id, req.user.id, req.params.id, req.user.id, tenantId);
 
       if (!isAssigned) {
-        return res.status(403).json({ message: 'عفواً، ليس لديك صلاحية عرض هذه القضية' });
+        return res.status(403).json({ message: 'ليس لديك صلاحية عرض هذه القضية' });
       }
     }
 
@@ -112,6 +119,7 @@ router.get('/:id', (req, res, next) => {
 // POST /api/cases - Create new case
 router.post('/', validateCase, (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const {
       case_number, title, description, court_name, case_type, priority = 'medium',
       client_id, lead_lawyer_id, assigned_lawyer_ids = [], force,
@@ -123,7 +131,8 @@ router.post('/', validateCase, (req, res, next) => {
       const conflictCheck = checkConflict({
         title,
         opponentName: opponent_name,
-        opponentId: opponent_id_number
+        opponentId: opponent_id_number,
+        tenantId
       });
       if (conflictCheck.hasConflict) {
         return res.status(409).json({
@@ -138,16 +147,33 @@ router.post('/', validateCase, (req, res, next) => {
     }
 
     const leadId = lead_lawyer_id || req.user.id;
+    const assignedLawyerIds = Array.isArray(assigned_lawyer_ids) ? assigned_lawyer_ids : [];
+
+    const client = db.prepare('SELECT id FROM clients WHERE id = ? AND tenant_id = ?').get(client_id, tenantId);
+    if (!client) {
+      return res.status(400).json({ message: 'العميل المحدد لا ينتمي إلى هذا المكتب' });
+    }
+
+    const lawyerIds = [...new Set([leadId, ...assignedLawyerIds])];
+    if (lawyerIds.length > 0) {
+      const placeholders = lawyerIds.map(() => '?').join(', ');
+      const matchingLawyers = db.prepare(`
+        SELECT id FROM users WHERE tenant_id = ? AND is_active = 1 AND id IN (${placeholders})
+      `).all(tenantId, ...lawyerIds);
+      if (matchingLawyers.length !== lawyerIds.length) {
+        return res.status(400).json({ message: 'يجب أن ينتمي جميع المحامين المحددين إلى هذا المكتب وأن تكون حساباتهم مفعلة' });
+      }
+    }
     const stmt = db.prepare(`
       INSERT INTO cases (
         case_number, title, description, court_name, case_type, priority,
-        client_id, lead_lawyer_id, opponent_name, opponent_id_number, opponent_lawyer, opponent_phone
+        client_id, lead_lawyer_id, opponent_name, opponent_id_number, opponent_lawyer, opponent_phone, tenant_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       case_number, title, description, court_name, case_type, priority,
-      client_id, leadId, opponent_name || null, opponent_id_number || null, opponent_lawyer || null, opponent_phone || null
+      client_id, leadId, opponent_name || null, opponent_id_number || null, opponent_lawyer || null, opponent_phone || null, tenantId
     );
     const caseId = result.lastInsertRowid;
 
@@ -156,7 +182,7 @@ router.post('/', validateCase, (req, res, next) => {
 
     // Link additional lawyers
     const insertLawyer = db.prepare('INSERT OR IGNORE INTO case_lawyers (case_id, user_id, role_in_case) VALUES (?, ?, ?)');
-    for (const lawyerId of assigned_lawyer_ids) {
+    for (const lawyerId of assignedLawyerIds) {
       insertLawyer.run(caseId, lawyerId, 'assigned');
       // Notify assigned lawyer
       createNotification({
@@ -171,9 +197,9 @@ router.post('/', validateCase, (req, res, next) => {
 
     // Audit log
     db.prepare(`
-      INSERT INTO activity_log (user_id, action, entity_type, details_json)
-      VALUES (?, ?, ?, ?)
-    `).run(req.user.id, 'CREATE_CASE', 'case', JSON.stringify({ caseId, title, case_number, opponent_name }));
+      INSERT INTO activity_log (user_id, action, entity_type, details_json, tenant_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(req.user.id, 'CREATE_CASE', 'case', JSON.stringify({ caseId, title, case_number, opponent_name }), tenantId);
 
     res.status(201).json({ success: true, message: 'تم إنشاء القضية بنجاح', caseId });
   } catch (err) {
@@ -184,17 +210,20 @@ router.post('/', validateCase, (req, res, next) => {
 // PUT /api/cases/:id - Update case
 router.put('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const {
       case_number, title, description, court_name, case_type, status, priority,
       client_id, lead_lawyer_id, opponent_name, opponent_id_number, opponent_lawyer, opponent_phone
     } = req.body;
     
-    // Check permission: Admin or Lead lawyer
-    if (req.user.role !== 'admin') {
-      const existing = db.prepare('SELECT lead_lawyer_id FROM cases WHERE id = ?').get(req.params.id);
-      if (!existing || existing.lead_lawyer_id !== req.user.id) {
-        return res.status(403).json({ message: 'ليس لديك صلاحية تعديل هذه القضية' });
-      }
+    // Check permission: Admin or Lead lawyer of this tenant
+    const existing = db.prepare('SELECT lead_lawyer_id FROM cases WHERE id = ? AND tenant_id = ?').get(req.params.id, tenantId);
+    if (!existing) {
+      return res.status(404).json({ message: 'القضية غير موجودة' });
+    }
+
+    if (req.user.role !== 'admin' && existing.lead_lawyer_id !== req.user.id) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية تعديل هذه القضية' });
     }
 
     db.prepare(`
@@ -212,11 +241,11 @@ router.put('/:id', (req, res, next) => {
           opponent_id_number = COALESCE(?, opponent_id_number),
           opponent_lawyer = COALESCE(?, opponent_lawyer),
           opponent_phone = COALESCE(?, opponent_phone)
-      WHERE id = ?
+      WHERE id = ? AND tenant_id = ?
     `).run(
       case_number, title, description, court_name, case_type, status, priority,
       client_id, lead_lawyer_id, opponent_name, opponent_id_number, opponent_lawyer, opponent_phone,
-      req.params.id
+      req.params.id, tenantId
     );
 
     if (lead_lawyer_id) {
@@ -225,9 +254,9 @@ router.put('/:id', (req, res, next) => {
 
     // Audit log
     db.prepare(`
-      INSERT INTO activity_log (user_id, action, entity_type, details_json)
-      VALUES (?, ?, ?, ?)
-    `).run(req.user.id, 'UPDATE_CASE', 'case', JSON.stringify({ caseId: req.params.id, title, status }));
+      INSERT INTO activity_log (user_id, action, entity_type, details_json, tenant_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(req.user.id, 'UPDATE_CASE', 'case', JSON.stringify({ caseId: req.params.id, title, status }), tenantId);
 
     res.json({ success: true, message: 'تم تحديث بيانات القضية بنجاح' });
   } catch (err) {
@@ -235,84 +264,26 @@ router.put('/:id', (req, res, next) => {
   }
 });
 
-// PATCH or PUT /api/cases/:id/status - Quick status update (e.g. mark done/closed/active)
-const handleStatusUpdate = (req, res, next) => {
-  try {
-    const { status } = req.body;
-    const validStatuses = ['active', 'pending', 'closed', 'archived'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'حالة القضية غير صالحة' });
-    }
-
-    const currentCase = db.prepare('SELECT id, title, lead_lawyer_id FROM cases WHERE id = ?').get(req.params.id);
-    if (!currentCase) {
-      return res.status(404).json({ message: 'القضية غير موجودة' });
-    }
-
-    if (!canManageCase(req.user, req.params.id)) {
-      return res.status(403).json({ message: 'ليس لديك صلاحية تغيير حالة هذه القضية' });
-    }
-
-    db.prepare('UPDATE cases SET status = ? WHERE id = ?').run(status, req.params.id);
-
-    // Audit log
-    db.prepare(`
-      INSERT INTO activity_log (user_id, action, entity_type, details_json)
-      VALUES (?, ?, ?, ?)
-    `).run(req.user.id, 'CHANGE_CASE_STATUS', 'case', JSON.stringify({ caseId: req.params.id, newStatus: status }));
-
-    // Notify lead lawyer if updated by admin
-    if (req.user.id !== currentCase.lead_lawyer_id) {
-      createNotification({
-        userId: currentCase.lead_lawyer_id,
-        title: 'تحديث حالة القضية',
-        message: `تم تغيير حالة القضية "${currentCase.title}" إلى (${status === 'closed' ? 'مغلقة / منتهية' : status === 'active' ? 'نشطة' : status === 'pending' ? 'معلقة' : 'مؤرشفة'})`,
-        type: status === 'closed' ? 'success' : 'info',
-        relatedEntityType: 'case',
-        relatedEntityId: currentCase.id
-      });
-    }
-
-    res.json({ success: true, message: 'تم تحديث حالة القضية بنجاح', status });
-  } catch (err) {
-    next(err);
-  }
-};
-
-router.patch('/:id/status', handleStatusUpdate);
-router.put('/:id/status', handleStatusUpdate);
-router.post('/:id/status', handleStatusUpdate);
-
 // DELETE /api/cases/:id - Delete case (Admin only)
 router.delete('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     if (req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'صلاحية حذف القضايا مقتصرة على مدير المكتب فقط' });
+      return res.status(403).json({ message: 'فقط مدير النظام يمكنه حذف القضايا' });
     }
 
-    const caseItem = db.prepare('SELECT id, title, case_number FROM cases WHERE id = ?').get(req.params.id);
-    if (!caseItem) {
-      return res.status(404).json({ message: 'القضية غير موجودة' });
-    }
+    const caseItem = db.prepare('SELECT id, title FROM cases WHERE id = ? AND tenant_id = ?').get(req.params.id, tenantId);
+    if (!caseItem) return res.status(404).json({ message: 'القضية غير موجودة' });
 
-    // Perform cascade delete in a transaction
-    const deleteTransaction = db.transaction(() => {
-      db.prepare('DELETE FROM case_notes WHERE case_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM tasks WHERE case_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM events WHERE case_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM documents WHERE case_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM case_lawyers WHERE case_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM cases WHERE id = ?').run(req.params.id);
+    db.prepare('DELETE FROM cases WHERE id = ? AND tenant_id = ?').run(req.params.id, tenantId);
 
-      db.prepare(`
-        INSERT INTO activity_log (user_id, action, entity_type, details_json)
-        VALUES (?, ?, ?, ?)
-      `).run(req.user.id, 'DELETE_CASE', 'case', JSON.stringify({ caseId: req.params.id, title: caseItem.title, case_number: caseItem.case_number }));
-    });
+    // Audit log
+    db.prepare(`
+      INSERT INTO activity_log (user_id, action, entity_type, details_json, tenant_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(req.user.id, 'DELETE_CASE', 'case', JSON.stringify({ caseId: req.params.id, title: caseItem.title }), tenantId);
 
-    deleteTransaction();
-
-    res.json({ success: true, message: `تم حذف القضية (${caseItem.title}) وكافة متعلقاتها بنجاح` });
+    res.json({ success: true, message: 'تم حذف القضية بنجاح' });
   } catch (err) {
     next(err);
   }

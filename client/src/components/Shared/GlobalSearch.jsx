@@ -91,54 +91,220 @@ export default function GlobalSearch({ onNavigate }) {
     (results.events && results.events.length > 0)
   );
 
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+
+  const handleMobileClose = () => {
+    setMobileExpanded(false);
+    setIsOpen(false);
+  };
+
+  const handleMobileSelect = (type, item) => {
+    handleItemClick(type, item);
+    setMobileExpanded(false);
+  };
+
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-        <Search size={18} style={{ position: 'absolute', right: '12px', color: 'var(--text-muted)' }} />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="بحث سريع في القضايا، الموكلين، المهام..."
-          style={{
-            width: '100%',
-            padding: '8px 38px 8px 32px',
-            borderRadius: '20px',
-            border: '1px solid var(--border-color)',
-            backgroundColor: 'var(--bg-input)',
-            color: 'var(--text-main)',
-            outline: 'none',
-            fontSize: '0.85rem',
-            direction: 'rtl'
-          }}
-          onFocus={() => {
+    <>
+      {/* Mobile Search Trigger Icon */}
+      <div className="hide-on-desktop">
+        <button
+          type="button"
+          onClick={() => {
+            setMobileExpanded(true);
             if (query.trim().length > 0) setIsOpen(true);
           }}
-        />
-        {query && (
-          <X 
-            size={16} 
-            onClick={handleClear}
-            style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)', cursor: 'pointer' }} 
-          />
-        )}
+          title="بحث سريع في المنظومة"
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-main)',
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <Search size={18} color="var(--primary)" />
+        </button>
       </div>
 
-      {isOpen && (
-        <div className="glass-card" style={{
-          position: 'absolute',
-          top: 'calc(100% + 8px)',
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          maxHeight: '400px',
-          overflowY: 'auto',
-          borderRadius: 'var(--radius-md)',
-          padding: '8px 0',
-          direction: 'rtl',
-          border: '1px solid var(--border-color)',
-          boxShadow: 'var(--shadow-card)'
-        }}>
+      {/* Mobile Fullscreen / Overlay Search Bar */}
+      {mobileExpanded && (
+        <div
+          className="hide-on-desktop animate-slideDown"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 9999,
+            backgroundColor: 'var(--bg-card)',
+            borderBottom: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow-lg)',
+            padding: '10px 14px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Search size={19} color="var(--primary)" style={{ flexShrink: 0 }} />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="بحث في القضايا، الموكلين، المهام..."
+              style={{
+                flex: 1,
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-main)',
+                fontSize: '16px',
+                outline: 'none',
+                direction: 'rtl'
+              }}
+              onFocus={() => {
+                if (query.trim().length > 0) setIsOpen(true);
+              }}
+            />
+            {query && (
+              <X
+                size={18}
+                onClick={handleClear}
+                style={{ color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 }}
+              />
+            )}
+            <button
+              type="button"
+              onClick={handleMobileClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                fontWeight: '700',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                flexShrink: 0,
+                padding: '4px 6px'
+              }}
+            >
+              إلغاء
+            </button>
+          </div>
+
+          {/* Results Dropdown on Mobile */}
+          {isOpen && (
+            <div
+              className="glass-card"
+              style={{
+                maxHeight: '65vh',
+                overflowY: 'auto',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)',
+                marginTop: '4px',
+                padding: '6px 0'
+              }}
+            >
+              {loading && !results && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  جاري البحث...
+                </div>
+              )}
+              {!loading && !hasResults && results && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  لا توجد نتائج مطابقة لبحثك
+                </div>
+              )}
+              {hasResults && (
+                <>
+                  <ResultSection
+                    title="القضايا (انقر للعرض)"
+                    icon={<Briefcase size={16} />}
+                    items={results.cases}
+                    renderItem={(item) => `${item.title} (${item.case_number})`}
+                    onItemClick={(item) => handleMobileSelect('case', item)}
+                  />
+                  <ResultSection
+                    title="العملاء (انقر للملف)"
+                    icon={<Users size={16} />}
+                    items={results.clients}
+                    renderItem={(item) => `${item.name} ${item.phone ? ' - ' + item.phone : ''}`}
+                    onItemClick={(item) => handleMobileSelect('client', item)}
+                  />
+                  <ResultSection
+                    title="المهام (انقر للانتقال)"
+                    icon={<CheckSquare size={16} />}
+                    items={results.tasks}
+                    renderItem={(item) => item.title}
+                    onItemClick={(item) => handleMobileSelect('task', item)}
+                  />
+                  <ResultSection
+                    title="المواعيد والجلسات (انقر للتقويم)"
+                    icon={<Calendar size={16} />}
+                    items={results.events}
+                    renderItem={(item) => `${item.title} (${item.date || ''})`}
+                    onItemClick={(item) => handleMobileSelect('event', item)}
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Desktop Inline Search Bar */}
+      <div ref={wrapperRef} className="hide-on-mobile" style={{ position: 'relative', width: '100%', maxWidth: '380px' }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <Search size={18} style={{ position: 'absolute', right: '12px', color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="بحث سريع في القضايا، الموكلين، المهام..."
+            style={{
+              width: '100%',
+              padding: '8px 38px 8px 32px',
+              borderRadius: '20px',
+              border: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-input)',
+              color: 'var(--text-main)',
+              outline: 'none',
+              fontSize: '0.85rem',
+              direction: 'rtl'
+            }}
+            onFocus={() => {
+              if (query.trim().length > 0) setIsOpen(true);
+            }}
+          />
+          {query && (
+            <X 
+              size={16} 
+              onClick={handleClear}
+              style={{ position: 'absolute', left: '12px', color: 'var(--text-muted)', cursor: 'pointer' }} 
+            />
+          )}
+        </div>
+
+        {isOpen && (
+          <div className="glass-card" style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            maxHeight: '400px',
+            overflowY: 'auto',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 0',
+            direction: 'rtl',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow-card)'
+          }}>
           {loading && !results && <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>جاري البحث...</div>}
           
           {!loading && !hasResults && results && (
@@ -180,6 +346,7 @@ export default function GlobalSearch({ onNavigate }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 

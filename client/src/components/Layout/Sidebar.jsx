@@ -17,46 +17,75 @@ import {
   ChevronRight,
   ChevronLeft,
   ShieldCheck,
-  User
+  CreditCard,
+  Crown,
+  User,
+  X,
+  LogOut,
+  Server,
+  Sun,
+  Moon,
+  Laptop
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
+import { getServerUrl } from '../../api/client';
 
-export default function Sidebar({ activeTab, setActiveTab, collapsed = false, setCollapsed }) {
-  const { user, isAdmin } = useAuth();
+export default function Sidebar({ activeTab, setActiveTab, collapsed = false, setCollapsed, onClose, onChangeServer }) {
+  const { user, tenant, isAdmin, isSuperAdmin, logout } = useAuth();
+  const { theme, cycleTheme } = useTheme();
 
-  const navGroups = [
-    {
-      title: 'العمليات والقضايا',
-      items: [
-        { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
-        { id: 'cases', label: 'إدارة القضايا', icon: Briefcase },
-        { id: 'clients', label: 'دليل العملاء', icon: Users },
-        { id: 'documents', label: 'المستندات والملفات', icon: FileText },
-        { id: 'templates', label: 'قوالب المستندات', icon: FileSignature },
-      ]
-    },
-    {
-      title: 'المتابعة والمهام',
-      items: [
-        { id: 'calendar', label: 'التقويم والمواعيد', icon: Calendar },
-        { id: 'tasks', label: 'لوحة المهام', icon: CheckSquare },
-        { id: 'finance', label: 'المالية والفواتير', icon: Receipt },
-        { id: 'reports', label: 'التقارير والإحصائيات', icon: BarChart3 },
-        { id: 'conflicts', label: 'فحص تعارض المصالح', icon: ShieldAlert },
-        { id: 'portal', label: 'بوابة الموكل الإلكترونية', icon: ShieldCheck },
-      ]
+  let navGroups = [];
+
+  if (isSuperAdmin) {
+    navGroups = [
+      {
+        title: 'الإدارة المركزية (SaaS)',
+        items: [
+          { id: 'platform_admin', label: 'إدارة المشتركين والمكاتب', icon: Crown },
+          { id: 'users', label: 'إدارة مسؤولي النظام', icon: UserCog },
+          { id: 'activity_log', label: 'سجل نشاطات النظام', icon: Activity },
+          { id: 'backups', label: 'النسخ الاحتياطي', icon: Database }
+        ]
+      }
+    ];
+  } else {
+    // Normal Lawyer / Admin navigation
+    navGroups = [
+      {
+        title: 'العمليات والقضايا',
+        items: [
+          { id: 'dashboard', label: 'لوحة التحكم', icon: LayoutDashboard },
+          { id: 'cases', label: 'إدارة القضايا', icon: Briefcase },
+          { id: 'clients', label: 'دليل العملاء', icon: Users },
+          { id: 'documents', label: 'المستندات والملفات', icon: FileText },
+          { id: 'templates', label: 'قوالب المستندات', icon: FileSignature },
+        ]
+      },
+      {
+        title: 'المتابعة والمهام',
+        items: [
+          { id: 'calendar', label: 'التقويم والمواعيد', icon: Calendar },
+          { id: 'tasks', label: 'لوحة المهام', icon: CheckSquare },
+          { id: 'finance', label: 'المالية والفواتير', icon: Receipt },
+          { id: 'reports', label: 'التقارير والإحصائيات', icon: BarChart3 },
+          { id: 'conflicts', label: 'فحص تعارض المصالح', icon: ShieldAlert },
+          { id: 'portal', label: 'بوابة الموكل الإلكترونية', icon: ShieldCheck },
+        ]
+      }
+    ];
+
+    if (isAdmin) {
+      navGroups.push({
+        title: 'الإدارة والاشتراك',
+        items: [
+          { id: 'users', label: 'إدارة المحامين', icon: UserCog },
+          { id: 'subscription', label: 'باقة الاشتراك والترقية', icon: CreditCard },
+          { id: 'activity_log', label: 'سجل النشاطات والرقابة', icon: Activity },
+          { id: 'backups', label: 'النسخ الاحتياطي', icon: Database }
+        ]
+      });
     }
-  ];
-
-  if (isAdmin) {
-    navGroups.push({
-      title: 'الإدارة والرقابة',
-      items: [
-        { id: 'users', label: 'إدارة المحامين', icon: UserCog },
-        { id: 'activity_log', label: 'سجل النشاطات والرقابة', icon: Activity },
-        { id: 'backups', label: 'النسخ الاحتياطي', icon: Database }
-      ]
-    });
   }
 
   // Get user initials
@@ -87,7 +116,7 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
         overflowX: 'hidden'
       }}
     >
-      {/* Brand Header & Collapse Button */}
+      {/* Brand Header & Collapse/Close Button */}
       <div
         style={{
           display: 'flex',
@@ -116,51 +145,84 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
 
           {!collapsed && (
             <div className="animate-fadeIn" style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--primary)', lineHeight: '1.2' }}>
-                مكتب المحاماة
+              <h2 style={{ fontSize: '1.02rem', fontWeight: '800', color: 'var(--primary)', lineHeight: '1.2' }}>
+                {tenant?.name || 'مكتب المحاماة'}
               </h2>
-              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                إدارة القضايا والشؤون
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {tenant?.city || 'طرابلس'}
+                </span>
+                <span className={`badge ${tenant?.plan === 'trial' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
+                  {tenant?.plan === 'trial' ? 'تجريبي' : 'نشط'}
+                </span>
+              </div>
             </div>
           )}
         </div>
 
-        {setCollapsed && !collapsed && (
-          <button
-            onClick={() => setCollapsed(true)}
-            title="طي القائمة الجانبية"
-            style={{
-              background: 'var(--primary-light)',
-              border: '1px solid var(--border-color)',
-              color: 'var(--primary)',
-              width: '28px',
-              height: '28px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.18s ease'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--primary)';
-              e.currentTarget.style.color = '#ffffff';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--primary-light)';
-              e.currentTarget.style.color = 'var(--primary)';
-            }}
-          >
-            <ChevronRight size={18} />
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Desktop collapse button */}
+          {setCollapsed && !collapsed && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="hide-on-mobile"
+              title="طي القائمة الجانبية"
+              style={{
+                background: 'var(--primary-light)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--primary)',
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'all 0.18s ease'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary)';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--primary-light)';
+                e.currentTarget.style.color = 'var(--primary)';
+              }}
+            >
+              <ChevronRight size={18} />
+            </button>
+          )}
+
+          {/* Mobile drawer close button */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="hide-on-desktop"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-main)',
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="إغلاق القائمة"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Expand Button when collapsed */}
+      {/* Expand Button when collapsed (desktop) */}
       {setCollapsed && collapsed && (
         <button
           onClick={() => setCollapsed(false)}
+          className="hide-on-mobile"
           title="توسيع القائمة الجانبية"
           style={{
             background: 'var(--primary-light)',
@@ -237,11 +299,11 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
               <span
-                className={`badge ${isAdmin ? 'badge-urgent' : 'badge-active'}`}
-                style={{ fontSize: '0.68rem', padding: '1px 6px' }}
+                className={`badge ${isSuperAdmin ? 'badge-info' : isAdmin ? 'badge-urgent' : 'badge-active'}`}
+                style={{ fontSize: '0.68rem', padding: '1px 6px', background: isSuperAdmin ? 'var(--primary)' : undefined, color: isSuperAdmin ? '#fff' : undefined }}
               >
-                {isAdmin ? <ShieldCheck size={11} /> : null}
-                {isAdmin ? 'مدير المكتب' : 'محامي'}
+                {(isAdmin || isSuperAdmin) ? <ShieldCheck size={11} /> : null}
+                {isSuperAdmin ? 'مالك المنظومة' : isAdmin ? 'مدير المكتب' : 'محامي'}
               </span>
             </div>
           </div>
@@ -277,7 +339,10 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (onClose) onClose();
+                  }}
                   title={collapsed ? item.label : undefined}
                   style={{
                     display: 'flex',
@@ -326,6 +391,110 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
           </div>
         ))}
       </nav>
+
+      {/* Mobile Drawer Footer: Server info, Theme toggle, Logout */}
+      <div
+        className="hide-on-desktop"
+        style={{
+          marginTop: 'auto',
+          paddingTop: '16px',
+          borderTop: '1px solid var(--border-subtle)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}
+      >
+        {/* Server connection pill */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--bg-card)',
+            padding: '8px 12px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-subtle)',
+            fontSize: '0.78rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+            <Server size={14} color="var(--primary)" />
+            <span style={{ color: 'var(--text-muted)' }}>الخادم:</span>
+            <span style={{ color: 'var(--text-main)', direction: 'ltr', fontWeight: '600', maxWidth: '110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {getServerUrl()}
+            </span>
+          </div>
+          {onChangeServer && (
+            <button
+              onClick={() => {
+                if (onClose) onClose();
+                onChangeServer();
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                cursor: 'pointer',
+                fontSize: '0.76rem',
+                fontWeight: '700',
+                textDecoration: 'underline'
+              }}
+            >
+              تغيير
+            </button>
+          )}
+        </div>
+
+        {/* Theme toggle & Logout row */}
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={cycleTheme}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              color: 'var(--text-main)',
+              padding: '9px 10px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.8rem',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            {theme === 'light' ? <Sun size={15} color="var(--primary)" /> : theme === 'auto' ? <Laptop size={15} color="var(--primary)" /> : <Moon size={15} color="var(--primary)" />}
+            <span>{theme === 'light' ? 'فاتح' : theme === 'auto' ? 'تلقائي' : 'داكن'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (onClose) onClose();
+              logout();
+            }}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              background: 'var(--error-light)',
+              border: '1px solid rgba(244, 63, 94, 0.3)',
+              color: 'var(--error)',
+              padding: '9px 10px',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.8rem',
+              fontWeight: '700',
+              cursor: 'pointer'
+            }}
+          >
+            <LogOut size={15} />
+            <span>خروج</span>
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }

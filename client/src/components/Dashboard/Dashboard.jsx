@@ -71,22 +71,36 @@ export default function Dashboard({ setActiveTab }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header & Quick Action Hub */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--primary)' }}>نظرة عامة على المكتب</h1>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>مرحباً بك، إليك ملخص القضايا والمهام الجارية اليوم</p>
+          <h1 style={{ fontSize: '1.45rem', fontWeight: '800', color: 'var(--primary)', margin: 0, textWrap: 'balance' }}>نظرة عامة على المكتب</h1>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px', marginBottom: 0, textWrap: 'pretty' }}>مرحباً بك، إليك ملخص القضايا والمهام الجارية اليوم</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <Button icon={Plus} onClick={() => setActiveTab('cases')}>قضية جديدة</Button>
-          <Button icon={Plus} variant="secondary" onClick={() => setActiveTab('clients')}>عميل جديد</Button>
-          <Button icon={Receipt} variant="secondary" onClick={() => setActiveTab('finance')}>المالية والفواتير</Button>
-          <Button icon={FileSignature} variant="secondary" onClick={() => setActiveTab('templates')}>قوالب العقود</Button>
+
+        {/* Quick Action Grid */}
+        <div className="quick-actions-bar">
+          <button type="button" onClick={() => setActiveTab('cases')} className="quick-action-pill primary">
+            <Plus size={16} />
+            <span>قضية جديدة</span>
+          </button>
+          <button type="button" onClick={() => setActiveTab('clients')} className="quick-action-pill">
+            <Plus size={16} />
+            <span>عميل جديد</span>
+          </button>
+          <button type="button" onClick={() => setActiveTab('calendar')} className="quick-action-pill">
+            <CalendarIcon size={16} />
+            <span>موعد جلسة</span>
+          </button>
+          <button type="button" onClick={() => setActiveTab('finance')} className="quick-action-pill">
+            <Receipt size={16} />
+            <span>المالية</span>
+          </button>
         </div>
       </div>
 
       {/* Metric Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+      <div className="stat-card-grid">
         <div onClick={() => setActiveTab('cases')} style={{ cursor: 'pointer' }}>
           <StatCard title="إجمالي القضايا" value={stats.totalCases} icon={Briefcase} color="var(--primary)" subtitle="جميع الملفات المسجلة" />
         </div>
@@ -99,14 +113,36 @@ export default function Dashboard({ setActiveTab }) {
         <div onClick={() => setActiveTab('tasks')} style={{ cursor: 'pointer' }}>
           <StatCard title="المهام المطلوبة" value={stats.pendingTasks} icon={CheckSquare} color="var(--info)" subtitle="بانتظار التنفيذ" />
         </div>
-        <div onClick={() => setActiveTab('finance')} style={{ cursor: 'pointer' }}>
-          <StatCard
-            title="الأتعاب غير المحصلة"
-            value={`${stats.uncollectedAmount.toLocaleString()} د.ل`}
-            icon={Receipt}
-            color="#ec4899"
-            subtitle={`${stats.uncollectedCount} فواتير بانتظار السداد`}
-          />
+        <div className="stat-card-wide" onClick={() => setActiveTab('finance')} style={{ cursor: 'pointer' }}>
+          <div className="glass-card stat-card-featured" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                flexShrink: 0,
+                borderRadius: '10px',
+                background: 'rgba(236, 72, 153, 0.14)',
+                border: '1px solid rgba(236, 72, 153, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Receipt size={22} color="#ec4899" />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '2px' }}>الأتعاب غير المحصلة</div>
+                <div style={{ fontSize: '1.45rem', fontWeight: '800', color: 'var(--text-main)', lineHeight: 1.2 }}>
+                  {stats.uncollectedAmount.toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-dim)' }}>د.ل</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'left', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>{stats.uncollectedCount} فواتير معلقة</div>
+              <span style={{ fontSize: '0.78rem', color: 'var(--primary)', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                عرض المالية ←
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -119,7 +155,7 @@ export default function Dashboard({ setActiveTab }) {
       />
 
       {/* Grid: Recent Cases & Pending Tasks */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
         {/* Recent Cases */}
         <div className="glass-card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>

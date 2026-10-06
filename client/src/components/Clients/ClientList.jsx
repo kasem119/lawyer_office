@@ -192,17 +192,17 @@ export default function ClientList({ onViewClient }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>دليل العملاء الأصلاء</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>دليل العملاء الأصلاء</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>إدارة سجلات وبيانات عملاء المكتب والتحكم في الملفات</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button icon={FileText} onClick={() => handleExport('pdf')} variant="secondary" disabled={exporting}>
-            {exporting ? 'جاري التصدير...' : 'تصدير PDF'}
+            {exporting ? '...' : 'PDF'}
           </Button>
           <Button icon={FileSpreadsheet} onClick={() => handleExport('excel')} variant="secondary" disabled={exporting}>
-            {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+            {exporting ? '...' : 'Excel'}
           </Button>
           <Button icon={Plus} onClick={() => { setEditingClient(null); setIsModalOpen(true); }}>إضافة عميل جديد</Button>
         </div>

@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import { ENCRYPTION_KEY } from '../config.js';
 
+// TODO (Future Enhancement): Support per-tenant encryption keys for better data isolation.
+// Currently uses a single system-wide key.
+
 const ALGORITHM = 'aes-256-gcm';
 // Ensure key is exactly 32 bytes
 const key = crypto.createHash('sha256').update(String(ENCRYPTION_KEY)).digest();
@@ -41,7 +44,6 @@ export function decryptText(encryptedText) {
 
 export function hashSearchTerm(text) {
   if (!text) return null;
-  const normalized = String(text).trim().replace(/[\s\-_]/g, '').toLowerCase();
+  const normalized = String(text).trim().replace(/[\\s\\-_]/g, '').toLowerCase();
   return crypto.createHmac('sha256', key).update(normalized).digest('hex');
 }
-

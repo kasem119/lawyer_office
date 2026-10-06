@@ -9,7 +9,7 @@ import UserProfileModal from '../Auth/UserProfileModal';
 import AIAssistantModal from '../AI/AIAssistantModal';
 
 export default function Header({ onChangeServer, onToggleMobileSidebar, onNavigate }) {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const { theme, resolvedTheme, cycleTheme, setTheme } = useTheme();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -28,8 +28,8 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
 
   return (
     <header
+      className="app-header"
       style={{
-        height: '68px',
         backgroundColor: 'var(--bg-header)',
         backdropFilter: 'var(--backdrop-blur)',
         WebkitBackdropFilter: 'var(--backdrop-blur)',
@@ -37,36 +37,50 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 20px',
-        gap: '16px',
-        position: 'relative',
+        paddingTop: 'max(10px, env(safe-area-inset-top, 0px))',
+        paddingBottom: '10px',
+        paddingLeft: '14px',
+        paddingRight: '14px',
+        minHeight: 'calc(58px + env(safe-area-inset-top, 0px))',
+        gap: '10px',
+        position: 'sticky',
+        top: 0,
         zIndex: 40,
         boxShadow: 'var(--shadow-sm)'
       }}
     >
-      {/* Right side: Mobile Menu Button & Server info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      {/* Right side: Mobile Menu Button & Brand / Server info */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
         {onToggleMobileSidebar && (
           <button
+            type="button"
             onClick={onToggleMobileSidebar}
             className="hide-on-desktop"
             style={{
               background: 'var(--bg-card)',
               border: '1px solid var(--border-color)',
               color: 'var(--text-main)',
-              padding: '8px',
+              width: '38px',
+              height: '38px',
               borderRadius: 'var(--radius-sm)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              flexShrink: 0
             }}
+            title="القائمة الرئيسية"
           >
             <Menu size={20} />
           </button>
         )}
 
+        <div className="hide-on-desktop" style={{ fontWeight: '800', color: 'var(--primary)', fontSize: '0.98rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          منظومة المحاماة
+        </div>
+
         <div
+          className="hide-on-mobile"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -113,16 +127,18 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
         </div>
       </div>
 
-      {/* Center: Quick Global Search */}
+      {/* Center: Global Search (Desktop inline / Mobile trigger) */}
       <div style={{ flex: 1, maxWidth: '420px', display: 'flex', justifyContent: 'center' }}>
-        <GlobalSearch onNavigate={onNavigate} />
+        {!isSuperAdmin && <GlobalSearch onNavigate={onNavigate} />}
       </div>
 
       {/* Left side: Theme Switcher, Notifications & User Info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        {/* Theme Cycle Button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        {/* Theme Cycle Button (Desktop) */}
         <button
+          type="button"
           onClick={cycleTheme}
+          className="hide-on-mobile"
           title={`الوضع الحالي: ${getThemeLabel()} - اضغط للتبديل (داكن / فاتح / تلقائي)`}
           style={{
             background: 'var(--bg-card)',
@@ -154,33 +170,36 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
         </button>
 
         {/* AI Legal Assistant Button */}
-        <button
-          onClick={() => setIsAIOpen(true)}
-          title="المساعد القانوني الذكي وصياغة العقود"
-          style={{
-            background: 'linear-gradient(135deg, rgba(212, 168, 83, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
-            border: '1px solid var(--border-color)',
-            padding: '6px 14px',
-            borderRadius: 'var(--radius-full)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '0.82rem',
-            fontWeight: '700',
-            color: 'var(--primary)',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.boxShadow = 'none';
-          }}
-        >
-          <Sparkles size={16} />
-          <span className="hide-on-mobile">المساعد الذكي</span>
-        </button>
+        {!isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => setIsAIOpen(true)}
+            title="المساعد القانوني الذكي وصياغة العقود"
+            style={{
+              background: 'linear-gradient(135deg, rgba(212, 168, 83, 0.2) 0%, rgba(59, 130, 246, 0.2) 100%)',
+              border: '1px solid var(--border-color)',
+              padding: '7px 12px',
+              borderRadius: 'var(--radius-full)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.82rem',
+              fontWeight: '700',
+              color: 'var(--primary)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.boxShadow = 'var(--shadow-glow)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <Sparkles size={16} />
+            <span className="hide-on-mobile">المساعد الذكي</span>
+          </button>
+        )}
 
         {/* Notifications */}
         <NotificationBell />
@@ -190,10 +209,7 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
-            borderRight: '1px solid var(--border-subtle)',
-            paddingRight: '14px',
-            marginRight: '2px'
+            gap: '8px'
           }}
         >
           <div
@@ -202,9 +218,9 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '8px',
               cursor: 'pointer',
-              padding: '4px 8px',
+              padding: '4px',
               borderRadius: 'var(--radius-md)',
               transition: 'background 0.2s ease'
             }}
@@ -244,18 +260,20 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <span
-                  className={`badge ${isAdmin ? 'badge-urgent' : 'badge-active'}`}
-                  style={{ fontSize: '0.68rem', padding: '1px 6px' }}
+                  className={`badge ${isSuperAdmin ? 'badge-info' : isAdmin ? 'badge-urgent' : 'badge-active'}`}
+                  style={{ fontSize: '0.68rem', padding: '1px 6px', background: isSuperAdmin ? 'var(--primary)' : undefined, color: isSuperAdmin ? '#fff' : undefined }}
                 >
-                  {isAdmin ? <ShieldCheck size={11} /> : null}
-                  {isAdmin ? 'مدير المكتب' : 'محامي'}
+                  {(isAdmin || isSuperAdmin) ? <ShieldCheck size={11} /> : null}
+                  {isSuperAdmin ? 'مالك المنظومة' : isAdmin ? 'مدير المكتب' : 'محامي'}
                 </span>
               </div>
             </div>
           </div>
 
           <button
+            type="button"
             onClick={logout}
+            className="hide-on-mobile"
             title="تسجيل الخروج من المنظومة"
             style={{
               background: 'var(--error-light)',

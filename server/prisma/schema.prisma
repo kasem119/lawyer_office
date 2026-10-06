@@ -1,0 +1,510 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TENANT_ADMIN
+  SENIOR_LAWYER
+  LAWYER
+  PARALEGAL
+  SECRETARY
+  PLATFORM_ADMIN
+}
+
+enum CaseStatus {
+  active
+  pending
+  closed
+  archived
+}
+
+enum CasePriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  review
+  done
+}
+
+enum NotificationType {
+  info
+  warning
+  success
+  urgent
+  session_reminder
+  task_due
+  case_update
+  system
+}
+
+enum InvoiceStatus {
+  draft
+  sent
+  paid
+  overdue
+  cancelled
+}
+
+enum Plan {
+  TRIAL
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum SubStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+// SaaS Models
+
+model Tenant {
+  id             String         @id @default(uuid())
+  name           String
+  domain         String?        @unique
+  isActive       Boolean        @default(true)
+  plan           Plan           @default(TRIAL)
+  subscriptionId String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  users             User[]
+  clients           Client[]
+  cases             Case[]
+  settings          TenantSettings?
+  subscriptions     Subscription[]
+  payments          Payment[]
+  documents         Document[]
+  documentVersions  DocumentVersion[]
+  documentShares    DocumentShare[]
+  events            Event[]
+  tasks             Task[]
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+  caseNotes         CaseNote[]
+  invoices          Invoice[]
+  invoiceItems      InvoiceItem[]
+  expenses          Expense[]
+  timeEntries       TimeEntry[]
+  documentTemplates DocumentTemplate[]
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  id        String   @id @default(uuid())
+  tenantId  String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  settings  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tenant_settings")
+}
+
+model Subscription {
+  id             String    @id @default(uuid())
+  tenantId       String
+  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan           Plan
+  status         SubStatus
+  startDate      DateTime
+  endDate        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amount        Float
+  currency      String        @default("LYD")
+  status        PaymentStatus @default(PENDING)
+  paymentDate   DateTime?
+  reference     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+// Existing Models Converted
+
+model User {
+  id           String    @id @default(uuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  passwordHash String
+  role         Role
+  phone        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  clientsCreated      Client[]
+  casesLead           Case[]             @relation("CaseLeadLawyer")
+  caseLawyers         CaseLawyer[]
+  documentsUploaded   Document[]         @relation("DocumentUploadedBy")
+  docVersionsUploaded DocumentVersion[]  @relation("DocVersionUploadedBy")
+  documentsSharedWith DocumentShare[]    @relation("SharedWithUser")
+  documentsSharedBy   DocumentShare[]    @relation("SharedByUser")
+  events              Event[]
+  tasksAssigned       Task[]             @relation("TaskAssignedTo")
+  tasksCreated        Task[]             @relation("TaskCreatedBy")
+  notifications       Notification[]
+  activityLogs        ActivityLog[]
+  caseNotes           CaseNote[]
+  invoicesCreated     Invoice[]          @relation("InvoiceCreatedBy")
+  expenses            Expense[]
+  timeEntries         TimeEntry[]
+  templatesCreated    DocumentTemplate[]
+
+  @@unique([tenantId, email])
+  @@map("users")
+}
+
+model Client {
+  id                  String    @id @default(uuid())
+  tenantId            String
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name                String
+  nationalIdEncrypted String?
+  nationalIdHash      String?
+  phone               String?
+  email               String?
+  address             String?
+  notes               String?
+  createdById         String
+  createdBy           User      @relation(fields: [createdById], references: [id])
+  createdAt           DateTime  @default(now())
+
+  cases    Case[]
+  invoices Invoice[]
+
+  @@index([name])
+  @@index([nationalIdHash])
+  @@map("clients")
+}
+
+model Case {
+  id               String       @id @default(uuid())
+  tenantId         String
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseNumber       String
+  title            String
+  description      String?
+  courtName        String?
+  caseType         String?
+  status           CaseStatus   @default(active)
+  priority         CasePriority @default(medium)
+  clientId         String
+  client           Client       @relation(fields: [clientId], references: [id])
+  leadLawyerId     String
+  leadLawyer       User         @relation("CaseLeadLawyer", fields: [leadLawyerId], references: [id])
+  opponentName     String?
+  opponentIdNumber String?
+  opponentLawyer   String?
+  opponentPhone    String?
+  openedAt         DateTime     @default(now())
+  closedAt         DateTime?
+
+  caseLawyers CaseLawyer[]
+  documents   Document[]
+  events      Event[]
+  tasks       Task[]
+  notes       CaseNote[]
+  invoices    Invoice[]
+  expenses    Expense[]
+  timeEntries TimeEntry[]
+
+  @@unique([tenantId, caseNumber])
+  @@index([clientId])
+  @@index([leadLawyerId])
+  @@index([status])
+  @@index([caseNumber])
+  @@index([opponentName])
+  @@map("cases")
+}
+
+model CaseLawyer {
+  caseId     String
+  case       Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roleInCase String @default("assigned")
+
+  @@id([caseId, userId])
+  @@map("case_lawyers")
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  originalName   String
+  storedName     String
+  filePath       String
+  fileSize       Int
+  mimeType       String?
+  caseId         String
+  case           Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedById   String
+  uploadedBy     User     @relation("DocumentUploadedBy", fields: [uploadedById], references: [id])
+  currentVersion Int      @default(1)
+  createdAt      DateTime @default(now())
+
+  versions DocumentVersion[]
+  shares   DocumentShare[]
+
+  @@index([caseId])
+  @@index([uploadedById])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documentId   String
+  document     Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  filePath     String
+  fileSize     Int
+  changeNote   String?
+  uploadedById String
+  uploadedBy   User     @relation("DocVersionUploadedBy", fields: [uploadedById], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@map("document_versions")
+}
+
+model DocumentShare {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  documentId       String
+  document         Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sharedWithUserId String
+  sharedWithUser   User     @relation("SharedWithUser", fields: [sharedWithUserId], references: [id], onDelete: Cascade)
+  sharedByUserId   String
+  sharedByUser     User     @relation("SharedByUser", fields: [sharedByUserId], references: [id])
+  permissions      String   @default("view")
+  createdAt        DateTime @default(now())
+
+  @@map("document_shares")
+}
+
+model Event {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  eventType       String
+  date            DateTime
+  time            String?
+  endTime         String?
+  location        String?
+  caseId          String?
+  case            Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  reminderMinutes Int      @default(60)
+
+  @@index([date])
+  @@index([userId])
+  @@index([caseId])
+  @@map("events")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TaskStatus @default(todo)
+  priority    String     @default("medium")
+  dueDate     DateTime?
+  caseId      String?
+  case        Case?      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignedToId String
+  assignedTo   User       @relation("TaskAssignedTo", fields: [assignedToId], references: [id])
+  createdById  String
+  createdBy    User       @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+
+  @@index([assignedToId])
+  @@index([caseId])
+  @@index([status])
+  @@map("tasks")
+}
+
+model Notification {
+  id                String           @id @default(uuid())
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title             String
+  message           String
+  type              NotificationType @default(info)
+  isRead            Boolean          @default(false)
+  relatedEntityType String?
+  relatedEntityId   String?
+  createdAt         DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  action       String
+  entityType   String
+  entityId     String?
+  detailsJson  String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("activity_log")
+}
+
+model CaseNote {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  content     String
+  noteType    String   @default("note")
+  isPrivate   Boolean  @default(false)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([caseId])
+  @@map("case_notes")
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoiceNumber String
+  caseId        String
+  case          Case          @relation(fields: [caseId], references: [id])
+  clientId      String
+  client        Client        @relation(fields: [clientId], references: [id])
+  totalAmount   Float         @default(0)
+  currency      String        @default("LYD")
+  status        InvoiceStatus @default(draft)
+  dueDate       DateTime?
+  paidDate      DateTime?
+  notes         String?
+  createdById   String
+  createdBy     User          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  createdAt     DateTime      @default(now())
+
+  items InvoiceItem[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([caseId])
+  @@index([clientId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  tenantId    String
+  tenant      Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float   @default(1)
+  unitPrice   Float
+  total       Float
+
+  @@map("invoice_items")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseId      String?
+  case        Case?    @relation(fields: [caseId], references: [id])
+  description String
+  amount      Float
+  category    String   @default("other")
+  date        DateTime @default(now())
+  receiptPath String?
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([caseId])
+  @@map("expenses")
+}
+
+model TimeEntry {
+  id              String   @id @default(uuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  caseId          String
+  case            Case     @relation(fields: [caseId], references: [id])
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  description     String?
+  durationMinutes Int
+  date            DateTime @default(now())
+  billable        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([caseId])
+  @@map("time_entries")
+}
+
+model DocumentTemplate {
+  id               String   @id @default(uuid())
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  category         String   @default("other")
+  contentHtml      String
+  placeholdersJson String?
+  createdById      String
+  createdBy        User     @relation(fields: [createdById], references: [id])
+  createdAt        DateTime @default(now())
+
+  @@map("document_templates")
+}

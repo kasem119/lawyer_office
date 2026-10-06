@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Modal from '../Shared/Modal';
 import Button from '../Shared/Button';
-import { UserCheck, Briefcase, Calendar, Receipt, LogOut, CheckCircle2, AlertCircle } from 'lucide-react';
+import { UserCheck, Briefcase, Calendar, Receipt, LogOut, CheckCircle2, AlertCircle, Activity } from 'lucide-react';
 import { apiFetch } from '../../api/client';
 
 export default function ClientPortalModal({ isOpen, onClose }) {
@@ -115,13 +115,31 @@ export default function ClientPortalModal({ isOpen, onClose }) {
             </button>
           </div>
 
+          {/* Quick Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
+            <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>{clientData.cases?.filter(c => c.status === 'active').length || 0}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>قضايا نشطة</div>
+            </div>
+            <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--warning)' }}>{clientData.upcoming_events?.length || 0}</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>جلسات قادمة</div>
+            </div>
+            <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--error)' }}>
+                {clientData.invoices?.filter(i => i.status !== 'paid').length || 0}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>فواتير مستحقة</div>
+            </div>
+          </div>
+
           {/* Tab Navigation */}
-          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', overflowX: 'auto' }}>
             <button
               type="button"
               className={`btn ${activeTab === 'cases' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('cases')}
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Briefcase size={16} />
               قضاياي ({clientData.cases?.length || 0})
@@ -130,16 +148,25 @@ export default function ClientPortalModal({ isOpen, onClose }) {
               type="button"
               className={`btn ${activeTab === 'events' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('events')}
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Calendar size={16} />
               الجلسات القادمة ({clientData.upcoming_events?.length || 0})
             </button>
             <button
               type="button"
+              className={`btn ${activeTab === 'updates' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setActiveTab('updates')}
+              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
+            >
+              <Activity size={16} />
+              تحديثات القضايا ({clientData.recent_updates?.length || 0})
+            </button>
+            <button
+              type="button"
               className={`btn ${activeTab === 'invoices' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('invoices')}
-              style={{ fontSize: '0.85rem' }}
+              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Receipt size={16} />
               الفواتير والمطالبات ({clientData.invoices?.length || 0})
@@ -157,7 +184,10 @@ export default function ClientPortalModal({ isOpen, onClose }) {
                     <div>
                       <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)' }}>{c.title}</div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        رقم القضية: <strong style={{ color: 'var(--primary)' }}>{c.case_number}</strong> | المحكمة: {c.court || 'غير محدد'} | المحامي المسؤول: {c.lead_lawyer_name || 'مكتب المحاماة'}
+                        رقم القضية: <strong style={{ color: 'var(--primary)' }}>{c.case_number}</strong> | المحكمة: {c.court || 'غير محدد'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        النوع: {c.case_type || 'غير محدد'} | المحامي: {c.lead_lawyer_name || 'مكتب المحاماة'} | تاريخ الفتح: {c.opened_at ? new Date(c.opened_at).toLocaleDateString('ar-EG') : '-'}
                       </div>
                     </div>
                     <span className={`badge badge-${c.status}`}>
@@ -178,13 +208,43 @@ export default function ClientPortalModal({ isOpen, onClose }) {
                 clientData.upcoming_events.map(ev => (
                   <div key={ev.id} style={{ padding: '14px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>{ev.title}</div>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>{ev.title} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>({ev.event_type === 'court_date' ? 'جلسة محكمة' : ev.event_type === 'meeting' ? 'اجتماع' : ev.event_type === 'deadline' ? 'موعد نهائي' : 'استشارة'})</span></div>
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                         القضية: {ev.case_title} ({ev.case_number}) | المكان: {ev.location || 'قاعة المحكمة'}
                       </div>
                     </div>
                     <div style={{ textAlign: 'left', fontWeight: '700', color: 'var(--warning)', fontSize: '0.9rem' }}>
                       {ev.date} {ev.time ? `- ${ev.time}` : ''}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Updates View */}
+          {activeTab === 'updates' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(!clientData.recent_updates || clientData.recent_updates.length === 0) ? (
+                <p style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)' }}>لا توجد تحديثات جديدة</p>
+              ) : (
+                clientData.recent_updates.map(upd => (
+                  <div key={upd.id} style={{ padding: '14px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                        تحديث في قضية: {upd.case_title} ({upd.case_number})
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {new Date(upd.created_at).toLocaleDateString('ar-EG')}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.5', background: 'var(--bg-body)', padding: '10px', borderRadius: '6px' }}>
+                      {upd.content}
+                    </div>
+                    <div style={{ alignSelf: 'flex-end' }}>
+                      <span className="badge badge-secondary" style={{ fontSize: '0.75rem' }}>
+                        {upd.note_type === 'court_result' ? 'نتيجة جلسة' : upd.note_type === 'update' ? 'تحديث عام' : upd.note_type === 'meeting' ? 'ملخص اجتماع' : 'ملاحظة'}
+                      </span>
                     </div>
                   </div>
                 ))

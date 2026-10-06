@@ -5,16 +5,21 @@ import { requireAdmin } from '../middleware/permissions.js';
 
 const router = express.Router();
 
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
+
 // Require authentication and admin privileges for all activity log endpoints
 router.use(authenticateToken);
 router.use(requireAdmin);
 
 /**
  * GET /api/activities
- * List activity logs with pagination, filtering, and user details
+ * List activity logs with pagination, filtering, and user details (Tenant scoped)
  */
 router.get('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const {
       page = 1,
       limit = 20,
@@ -26,8 +31,8 @@ router.get('/', (req, res, next) => {
       search
     } = req.query;
 
-    const whereClauses = [];
-    const params = [];
+    const whereClauses = ['(a.tenant_id = ? OR a.tenant_id IS NULL)'];
+    const params = [tenantId];
 
     // Filter by user_id
     if (user_id && user_id !== 'all') {
@@ -71,7 +76,7 @@ router.get('/', (req, res, next) => {
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereSql = `WHERE ${whereClauses.join(' AND ')}`;
 
     // Total count query
     const countQuery = `
@@ -128,42 +133,46 @@ router.get('/', (req, res, next) => {
 
 /**
  * GET /api/activities/stats
- * Activity statistics including counts by period, entity type, action, and top users
+ * Activity statistics including counts by period, entity type, action, and top users (Tenant scoped)
  */
 router.get('/stats', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
+
     // Total count
-    const totalRow = db.prepare('SELECT COUNT(*) as count FROM activity_log').get();
+    const totalRow = db.prepare('SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL)').get(tenantId);
     const total = totalRow ? totalRow.count : 0;
 
     // Today's count
-    const todayRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE DATE(created_at) = DATE('now')").get();
+    const todayRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL) AND DATE(created_at) = DATE('now')").get(tenantId);
     const today = todayRow ? todayRow.count : 0;
 
     // This week's count (last 7 days)
-    const thisWeekRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE DATE(created_at) >= DATE('now', '-7 days')").get();
+    const thisWeekRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL) AND DATE(created_at) >= DATE('now', '-7 days')").get(tenantId);
     const thisWeek = thisWeekRow ? thisWeekRow.count : 0;
 
     // This month's count
-    const thisMonthRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')").get();
+    const thisMonthRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL) AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')").get(tenantId);
     const thisMonth = thisMonthRow ? thisMonthRow.count : 0;
 
     // Breakdown by entity_type
     const byEntityType = db.prepare(`
       SELECT entity_type, COUNT(*) as count
       FROM activity_log
+      WHERE (tenant_id = ? OR tenant_id IS NULL)
       GROUP BY entity_type
       ORDER BY count DESC
-    `).all();
+    `).all(tenantId);
 
     // Breakdown by action
     const byAction = db.prepare(`
       SELECT action, COUNT(*) as count
       FROM activity_log
+      WHERE (tenant_id = ? OR tenant_id IS NULL)
       GROUP BY action
       ORDER BY count DESC
       LIMIT 10
-    `).all();
+    `).all(tenantId);
 
     // Most active users
     const topUsers = db.prepare(`
@@ -175,10 +184,11 @@ router.get('/stats', (req, res, next) => {
         COUNT(*) as count
       FROM activity_log a
       LEFT JOIN users u ON a.user_id = u.id
+      WHERE (a.tenant_id = ? OR a.tenant_id IS NULL)
       GROUP BY a.user_id
       ORDER BY count DESC
       LIMIT 5
-    `).all();
+    `).all(tenantId);
 
     res.json({
       success: true,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import BottomNav from './BottomNav';
 import OfflineBanner from './OfflineBanner';
 import UpdateBanner from '../Shared/UpdateBanner';
 
@@ -27,7 +28,8 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: '100dvh',
+        minHeight: '100vh',
         width: '100vw',
         overflow: 'hidden',
         backgroundColor: 'var(--bg-dark)'
@@ -37,27 +39,34 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
       <OfflineBanner />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {/* Sidebar Overlay on Mobile */}
+        {/* Sidebar Overlay on Mobile with backdrop blur */}
         {mobileMenuOpen && (
           <div 
             onClick={() => setMobileMenuOpen(false)}
             className="hide-on-desktop animate-fadeIn"
             style={{
-              position: 'absolute',
+              position: 'fixed',
               inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              zIndex: 49
+              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              zIndex: 999
             }}
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar / Mobile Drawer */}
         <div className={`sidebar-container ${mobileMenuOpen ? 'mobile-open' : ''}`}>
           <Sidebar
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={(tab) => {
+              setActiveTab(tab);
+              setMobileMenuOpen(false);
+            }}
             collapsed={collapsed}
             setCollapsed={setCollapsed}
+            onClose={() => setMobileMenuOpen(false)}
+            onChangeServer={onChangeServer}
           />
         </div>
 
@@ -83,6 +92,16 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
           </main>
         </div>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <BottomNav
+        activeTab={activeTab}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          setMobileMenuOpen(false);
+        }}
+        onOpenDrawer={() => setMobileMenuOpen(true)}
+      />
     </div>
   );
 }

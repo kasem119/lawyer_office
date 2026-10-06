@@ -53,14 +53,14 @@ async function run() {
         .send({
           name: 'أ. سارة محمود (محامية)',
           email: 'lawyer@lawyer.com',
-          password: 'LawyerSecret123!',
+          password: 'lawyer123',
           role: 'lawyer'
         });
     }
 
     const loginRes = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'lawyer@lawyer.com', password: 'LawyerSecret123!' });
+      .send({ email: 'lawyer@lawyer.com', password: 'lawyer123' });
     if (loginRes.status !== 200 || !loginRes.body.accessToken) {
       throw new Error(`Lawyer login failed: ${loginRes.status}`);
     }

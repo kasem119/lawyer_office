@@ -5,29 +5,30 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authenticateToken);
 
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
+
 // GET /api/expenses
 router.get('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     let sql = `
       SELECT e.*, c.case_number 
       FROM expenses e
       LEFT JOIN cases c ON e.case_id = c.id
+      WHERE e.tenant_id = ?
     `;
-    let params = [];
-    const conditions = [];
+    let params = [tenantId];
     
-    if (req.user.role !== 'admin') {
-      conditions.push(`e.created_by = ?`);
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+      sql += ` AND e.created_by = ?`;
       params.push(req.user.id);
     }
     
     if (req.query.case_id) {
-      conditions.push(`e.case_id = ?`);
+      sql += ` AND e.case_id = ?`;
       params.push(req.query.case_id);
-    }
-    
-    if (conditions.length > 0) {
-      sql += ` WHERE ` + conditions.join(' AND ');
     }
     
     sql += ` ORDER BY e.date DESC`;
@@ -44,14 +45,15 @@ router.get('/', (req, res, next) => {
 // POST /api/expenses
 router.post('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const { case_id, description, amount, category, date } = req.body;
     
     const stmt = db.prepare(`
-      INSERT INTO expenses (case_id, description, amount, category, date, created_by)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO expenses (case_id, description, amount, category, date, created_by, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     
-    const info = stmt.run(case_id || null, description, amount, category, date, req.user.id);
+    const info = stmt.run(case_id || null, description, amount, category, date, req.user.id, tenantId);
     
     res.json({ success: true, message: 'تم إضافة المصروف بنجاح', data: { id: info.lastInsertRowid } });
   } catch (err) {
@@ -62,23 +64,24 @@ router.post('/', (req, res, next) => {
 // PUT /api/expenses/:id
 router.put('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const id = req.params.id;
     const { case_id, description, amount, category, date } = req.body;
     
-    const checkStmt = db.prepare('SELECT * FROM expenses WHERE id = ?');
-    const expense = checkStmt.get(id);
+    const checkStmt = db.prepare('SELECT * FROM expenses WHERE id = ? AND tenant_id = ?');
+    const expense = checkStmt.get(id, tenantId);
     
     if (!expense) return res.status(404).json({ success: false, message: 'المصروف غير موجود' });
     
-    if (req.user.role !== 'admin' && expense.created_by !== req.user.id) {
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && expense.created_by !== req.user.id) {
       return res.status(403).json({ success: false, message: 'غير مصرح لك' });
     }
     
     const stmt = db.prepare(`
       UPDATE expenses SET case_id = ?, description = ?, amount = ?, category = ?, date = ?
-      WHERE id = ?
+      WHERE id = ? AND tenant_id = ?
     `);
-    stmt.run(case_id || null, description, amount, category, date, id);
+    stmt.run(case_id || null, description, amount, category, date, id, tenantId);
     
     res.json({ success: true, message: 'تم تحديث المصروف بنجاح' });
   } catch (err) {
@@ -89,19 +92,20 @@ router.put('/:id', (req, res, next) => {
 // DELETE /api/expenses/:id
 router.delete('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const id = req.params.id;
     
-    const checkStmt = db.prepare('SELECT * FROM expenses WHERE id = ?');
-    const expense = checkStmt.get(id);
+    const checkStmt = db.prepare('SELECT * FROM expenses WHERE id = ? AND tenant_id = ?');
+    const expense = checkStmt.get(id, tenantId);
     
     if (!expense) return res.status(404).json({ success: false, message: 'المصروف غير موجود' });
     
-    if (req.user.role !== 'admin' && expense.created_by !== req.user.id) {
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && expense.created_by !== req.user.id) {
       return res.status(403).json({ success: false, message: 'غير مصرح لك' });
     }
     
-    const stmt = db.prepare('DELETE FROM expenses WHERE id = ?');
-    stmt.run(id);
+    const stmt = db.prepare('DELETE FROM expenses WHERE id = ? AND tenant_id = ?');
+    stmt.run(id, tenantId);
     
     res.json({ success: true, message: 'تم حذف المصروف بنجاح' });
   } catch (err) {

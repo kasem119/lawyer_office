@@ -1,7 +1,27 @@
-import React from 'react';
-import { Clock, User, Briefcase, ArrowLeft, ArrowRight, Edit2, Trash2, GripVertical } from 'lucide-react';
+import React, { useState } from 'react';
+import { Clock, User, Briefcase, ArrowLeft, ArrowRight, Edit2, Trash2, GripVertical, Bell } from 'lucide-react';
+import { apiFetch } from '../../api/client';
 
 export default function TaskCard({ task, onMoveStatus, onEdit, onDelete }) {
+  const [reminding, setReminding] = useState(false);
+
+  const handleSendReminder = async () => {
+    setReminding(true);
+    try {
+      const res = await apiFetch(`/tasks/${task.id}/remind`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'تم إرسال تذكير للمحامي المكلف بنجاح');
+      } else {
+        alert(data.message || 'فشل إرسال التذكير');
+      }
+    } catch (err) {
+      alert('تعذر الاتصال بالخادم لإرسال التذكير');
+    } finally {
+      setReminding(false);
+    }
+  };
+
   const priorityColors = {
     urgent: 'var(--error)',
     high: 'var(--warning)',
@@ -75,7 +95,21 @@ export default function TaskCard({ task, onMoveStatus, onEdit, onDelete }) {
 
       {/* Action and Navigation Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
-        <div style={{ display: 'flex', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+          <button
+            onClick={handleSendReminder}
+            disabled={reminding}
+            title="إرسال تذكير فوري للمحامي المكلف"
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--warning)',
+              cursor: reminding ? 'not-allowed' : 'pointer',
+              padding: '3px'
+            }}
+          >
+            <Bell size={14} />
+          </button>
           {onEdit && (
             <button
               onClick={() => onEdit(task)}

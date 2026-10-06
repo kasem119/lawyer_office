@@ -18,6 +18,8 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
     };
   }, [isOpen, onClose]);
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   if (!isOpen) return null;
 
   return (
@@ -27,62 +29,83 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        backgroundColor: 'rgba(11, 17, 32, 0.75)',
+        backgroundColor: 'rgba(11, 17, 32, 0.78)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: isMobile ? 'flex-end' : 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: isMobile ? '0' : '20px'
       }}
       onClick={onClose}
     >
       <div
-        className="glass-card animate-fadeInScale"
+        className={`glass-card ${isMobile ? 'animate-slideUp' : 'animate-fadeInScale'}`}
         style={{
           width: '100%',
-          maxWidth,
-          maxHeight: '90vh',
+          maxWidth: isMobile ? '100%' : maxWidth,
+          maxHeight: isMobile ? '92vh' : '90vh',
           overflowY: 'auto',
-          padding: '26px',
+          padding: isMobile ? '16px 18px calc(24px + var(--safe-area-bottom, 0px)) 18px' : '26px',
           position: 'relative',
           boxShadow: 'var(--shadow-lg)',
-          border: '1px solid var(--border-color)'
+          border: '1px solid var(--border-color)',
+          borderRadius: isMobile ? '20px 20px 0 0' : 'var(--radius-md)',
+          WebkitOverflowScrolling: 'touch'
         }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Drag Indicator Handle */}
+        {isMobile && (
+          <div
+            style={{
+              width: '42px',
+              height: '4px',
+              borderRadius: '2px',
+              backgroundColor: 'var(--border-subtle)',
+              margin: '0 auto 14px',
+              opacity: 0.8
+            }}
+          />
+        )}
+
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '20px',
+            marginBottom: '16px',
             borderBottom: '1px solid var(--border-subtle)',
-            paddingBottom: '12px'
+            paddingBottom: '12px',
+            position: 'sticky',
+            top: 0,
+            background: 'inherit',
+            zIndex: 10
           }}
         >
-          <h3 style={{ fontSize: '1.2rem', color: 'var(--primary)', fontWeight: '700' }}>
+          <h3 style={{ fontSize: isMobile ? '1.1rem' : '1.2rem', color: 'var(--primary)', fontWeight: '700', margin: 0 }}>
             {title}
           </h3>
           <button
             onClick={onClose}
             title="إغلاق"
             style={{
-              background: 'none',
-              border: 'none',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-subtle)',
               color: 'var(--text-dim)',
               cursor: 'pointer',
-              padding: '4px',
-              borderRadius: 'var(--radius-xs)',
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'color 0.15s ease'
+              transition: 'all 0.15s ease'
             }}
             onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-main)'}
             onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 

@@ -4,17 +4,22 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
+
 // GET /api/reports/overview - Accessible to all authenticated users
 router.get('/overview', authenticateToken, (req, res, next) => {
   try {
-    const isLawyer = req.user.role !== 'admin';
+    const tenantId = getTenantId(req);
+    const isLawyer = req.user.role !== 'admin' && req.user.role !== 'super_admin';
     const lawyerId = req.user.id;
 
-    let caseFilter = '';
-    let caseParams = [];
+    let caseFilter = ` WHERE cases.tenant_id = ?`;
+    let caseParams = [tenantId];
     if (isLawyer) {
-      caseFilter = ` WHERE lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?)`;
-      caseParams = [lawyerId, lawyerId];
+      caseFilter += ` AND (lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?))`;
+      caseParams.push(lawyerId, lawyerId);
     }
 
     const caseStats = db.prepare(`SELECT status, COUNT(*) as count FROM cases ${caseFilter} GROUP BY status`).all(...caseParams);
@@ -23,18 +28,18 @@ router.get('/overview', authenticateToken, (req, res, next) => {
     if (isLawyer) {
       const clientRow = db.prepare(`
         SELECT COUNT(DISTINCT client_id) as count FROM cases 
-        WHERE lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?)
-      `).get(lawyerId, lawyerId);
+        WHERE cases.tenant_id = ? AND (lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?))
+      `).get(tenantId, lawyerId, lawyerId);
       totalClients = clientRow ? clientRow.count : 0;
     } else {
-      totalClients = db.prepare(`SELECT COUNT(*) as count FROM clients`).get().count;
+      totalClients = db.prepare(`SELECT COUNT(*) as count FROM clients WHERE tenant_id = ?`).get(tenantId).count;
     }
 
-    let taskFilter = '';
-    let taskParams = [];
+    let taskFilter = ` WHERE tasks.tenant_id = ?`;
+    let taskParams = [tenantId];
     if (isLawyer) {
-      taskFilter = ` WHERE assigned_to = ?`;
-      taskParams = [lawyerId];
+      taskFilter += ` AND assigned_to = ?`;
+      taskParams.push(lawyerId);
     }
     const taskStats = db.prepare(`SELECT status, COUNT(*) as count FROM tasks ${taskFilter} GROUP BY status`).all(...taskParams);
     
@@ -43,22 +48,27 @@ router.get('/overview', authenticateToken, (req, res, next) => {
     const next30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
     let eventUserCondition = isLawyer ? ' AND user_id = ?' : '';
-    let eventParams7 = isLawyer ? [today, next7Days, lawyerId] : [today, next7Days];
-    let eventParams30 = isLawyer ? [today, next30Days, lawyerId] : [today, next30Days];
+    let eventParams7 = isLawyer ? [tenantId, today, next7Days, lawyerId] : [tenantId, today, next7Days];
+    let eventParams30 = isLawyer ? [tenantId, today, next30Days, lawyerId] : [tenantId, today, next30Days];
 
-    const events7DaysRow = db.prepare(`SELECT COUNT(*) as count FROM events WHERE date >= ? AND date <= ?${eventUserCondition}`).get(...eventParams7);
-    const events30DaysRow = db.prepare(`SELECT COUNT(*) as count FROM events WHERE date >= ? AND date <= ?${eventUserCondition}`).get(...eventParams30);
+    const events7DaysRow = db.prepare(`SELECT COUNT(*) as count FROM events WHERE tenant_id = ? AND date >= ? AND date <= ?${eventUserCondition}`).get(...eventParams7);
+    const events30DaysRow = db.prepare(`SELECT COUNT(*) as count FROM events WHERE tenant_id = ? AND date >= ? AND date <= ?${eventUserCondition}`).get(...eventParams30);
     const events7Days = events7DaysRow ? events7DaysRow.count : 0;
     const events30Days = events30DaysRow ? events30DaysRow.count : 0;
     
-    const totalDocsRow = db.prepare(`SELECT COUNT(*) as count FROM documents`).get();
+    const totalDocsRow = db.prepare(`
+      SELECT COUNT(*) as count 
+      FROM documents d
+      JOIN cases c ON d.case_id = c.id
+      WHERE c.tenant_id = ?
+    `).get(tenantId);
     const totalDocuments = totalDocsRow ? totalDocsRow.count : 0;
     
     let monthCondition = isLawyer ? ` AND (lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?))` : '';
-    let monthParams = isLawyer ? [lawyerId, lawyerId] : [];
+    let monthParams = isLawyer ? [tenantId, lawyerId, lawyerId] : [tenantId];
 
-    const casesThisMonthRow = db.prepare(`SELECT COUNT(*) as count FROM cases WHERE opened_at >= date('now', 'start of month')${monthCondition}`).get(...monthParams);
-    const casesLastMonthRow = db.prepare(`SELECT COUNT(*) as count FROM cases WHERE opened_at >= date('now', 'start of month', '-1 month') AND opened_at < date('now', 'start of month')${monthCondition}`).get(...monthParams);
+    const casesThisMonthRow = db.prepare(`SELECT COUNT(*) as count FROM cases WHERE tenant_id = ? AND opened_at >= date('now', 'start of month')${monthCondition}`).get(...monthParams);
+    const casesLastMonthRow = db.prepare(`SELECT COUNT(*) as count FROM cases WHERE tenant_id = ? AND opened_at >= date('now', 'start of month', '-1 month') AND opened_at < date('now', 'start of month')${monthCondition}`).get(...monthParams);
     const casesThisMonth = casesThisMonthRow ? casesThisMonthRow.count : 0;
     const casesLastMonth = casesLastMonthRow ? casesLastMonthRow.count : 0;
 
@@ -84,13 +94,14 @@ router.get('/overview', authenticateToken, (req, res, next) => {
   }
 });
 
-// GET /api/reports/lawyer-performance - Accessible to all (Lawyer sees self, Admin sees all)
+// GET /api/reports/lawyer-performance - Accessible to all (Lawyer sees self, Admin sees all of this tenant)
 router.get('/lawyer-performance', authenticateToken, (req, res, next) => {
   try {
-    let lawyersSql = `SELECT id, name, role FROM users WHERE role = 'lawyer'`;
-    let lawyersParams = [];
+    const tenantId = getTenantId(req);
+    let lawyersSql = `SELECT id, name, role FROM users WHERE role = 'lawyer' AND tenant_id = ?`;
+    let lawyersParams = [tenantId];
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
       lawyersSql += ` AND id = ?`;
       lawyersParams.push(req.user.id);
     }
@@ -98,11 +109,11 @@ router.get('/lawyer-performance', authenticateToken, (req, res, next) => {
     const lawyers = db.prepare(lawyersSql).all(...lawyersParams);
     
     const performance = lawyers.map(lawyer => {
-      const leadCases = db.prepare(`SELECT COUNT(*) as count FROM cases WHERE lead_lawyer_id = ?`).get(lawyer.id).count;
-      const assignedCases = db.prepare(`SELECT COUNT(*) as count FROM case_lawyers WHERE user_id = ?`).get(lawyer.id).count;
+      const leadCases = db.prepare(`SELECT COUNT(*) as count FROM cases WHERE lead_lawyer_id = ? AND tenant_id = ?`).get(lawyer.id, tenantId).count;
+      const assignedCases = db.prepare(`SELECT COUNT(*) as count FROM case_lawyers cl JOIN cases c ON cl.case_id = c.id WHERE cl.user_id = ? AND c.tenant_id = ?`).get(lawyer.id, tenantId).count;
       
-      const tasksTotal = db.prepare(`SELECT COUNT(*) as count FROM tasks WHERE assigned_to = ?`).get(lawyer.id).count;
-      const tasksCompleted = db.prepare(`SELECT COUNT(*) as count FROM tasks WHERE assigned_to = ? AND status = 'done'`).get(lawyer.id).count;
+      const tasksTotal = db.prepare(`SELECT COUNT(*) as count FROM tasks WHERE assigned_to = ? AND tenant_id = ?`).get(lawyer.id, tenantId).count;
+      const tasksCompleted = db.prepare(`SELECT COUNT(*) as count FROM tasks WHERE assigned_to = ? AND status = 'done' AND tenant_id = ?`).get(lawyer.id, tenantId).count;
       
       const completionRate = tasksTotal > 0 ? Math.round((tasksCompleted / tasksTotal) * 100) : 0;
       
@@ -125,20 +136,21 @@ router.get('/lawyer-performance', authenticateToken, (req, res, next) => {
   }
 });
 
-// GET /api/reports/financial-summary - Accessible to all (Scoper for Lawyer, Global for Admin)
+// GET /api/reports/financial-summary - Accessible to all (Scoped by tenant)
 router.get('/financial-summary', authenticateToken, (req, res, next) => {
   try {
-    const isLawyer = req.user.role !== 'admin';
+    const tenantId = getTenantId(req);
+    const isLawyer = req.user.role !== 'admin' && req.user.role !== 'super_admin';
     const lawyerId = req.user.id;
 
     let invoiceJoin = '';
-    let invoiceWhere = '';
-    let invoiceParams = [];
+    let invoiceWhere = ' WHERE i.tenant_id = ?';
+    let invoiceParams = [tenantId];
 
     if (isLawyer) {
       invoiceJoin = ' JOIN cases c ON i.case_id = c.id';
-      invoiceWhere = ' WHERE (c.lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl2 WHERE cl2.case_id = c.id AND cl2.user_id = ?))';
-      invoiceParams = [lawyerId, lawyerId];
+      invoiceWhere += ' AND (c.lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl2 WHERE cl2.case_id = c.id AND cl2.user_id = ?))';
+      invoiceParams.push(lawyerId, lawyerId);
     }
 
     const invoicedAmount = db.prepare(`
@@ -154,11 +166,11 @@ router.get('/financial-summary', authenticateToken, (req, res, next) => {
       else if (row.status === 'sent' || row.status === 'overdue') totalPending += Number(row.total || 0);
     });
 
-    let expensesWhere = '';
-    let expensesParams = [];
+    let expensesWhere = ' WHERE expenses.tenant_id = ?';
+    let expensesParams = [tenantId];
     if (isLawyer) {
-      expensesWhere = ` WHERE case_id IN (SELECT id FROM cases WHERE lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?))`;
-      expensesParams = [lawyerId, lawyerId];
+      expensesWhere += ` AND case_id IN (SELECT id FROM cases WHERE tenant_id = ? AND (lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?)))`;
+      expensesParams.push(tenantId, lawyerId, lawyerId);
     }
 
     let expensesAmount = 0;
@@ -171,11 +183,11 @@ router.get('/financial-summary', authenticateToken, (req, res, next) => {
 
     const netProfit = totalPaid - expensesAmount;
 
-    let monthWhere = `WHERE i.status = 'paid' AND i.created_at >= date('now', '-6 months')`;
-    let monthParams = [];
+    let monthWhere = `WHERE i.tenant_id = ? AND i.status = 'paid' AND i.created_at >= date('now', '-6 months')`;
+    let monthParams = [tenantId];
     if (isLawyer) {
       monthWhere += ` AND (c.lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl2 WHERE cl2.case_id = c.id AND cl2.user_id = ?))`;
-      monthParams = [lawyerId, lawyerId];
+      monthParams.push(lawyerId, lawyerId);
     }
 
     const revenueByMonth = db.prepare(`
@@ -187,11 +199,11 @@ router.get('/financial-summary', authenticateToken, (req, res, next) => {
       ORDER BY month ASC
     `).all(...monthParams);
 
-    let topCasesWhere = `WHERE i.status = 'paid'`;
-    let topCasesParams = [];
+    let topCasesWhere = `WHERE i.tenant_id = ? AND i.status = 'paid'`;
+    let topCasesParams = [tenantId];
     if (isLawyer) {
       topCasesWhere += ` AND (c.lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl2 WHERE cl2.case_id = c.id AND cl2.user_id = ?))`;
-      topCasesParams = [lawyerId, lawyerId];
+      topCasesParams.push(lawyerId, lawyerId);
     }
 
     const topCases = db.prepare(`
@@ -221,10 +233,11 @@ router.get('/financial-summary', authenticateToken, (req, res, next) => {
   }
 });
 
-// GET /api/reports/case-types - Accessible to all
+// GET /api/reports/case-types - Accessible to all (Scoped by tenant)
 router.get('/case-types', authenticateToken, (req, res, next) => {
   try {
-    const types = db.prepare(`SELECT case_type, COUNT(*) as count FROM cases GROUP BY case_type`).all();
+    const tenantId = getTenantId(req);
+    const types = db.prepare(`SELECT case_type, COUNT(*) as count FROM cases WHERE tenant_id = ? GROUP BY case_type`).all(tenantId);
     res.json({
       success: true,
       data: types

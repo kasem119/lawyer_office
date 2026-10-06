@@ -11,6 +11,10 @@ import { createNotification } from '../services/notificationService.js';
 const router = express.Router();
 router.use(authenticateToken);
 
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
@@ -20,20 +24,28 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     const allowed = new Set([
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/jpeg', 'image/png'
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'image/jpeg', 'image/png', 'image/webp',
+      'text/plain'
     ]);
     cb(allowed.has(file.mimetype) ? null : new Error('نوع الملف غير مسموح به'), allowed.has(file.mimetype));
   }
 });
 
 function requireDocumentAccess(req, res, documentId, { manage = false } = {}) {
-  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(documentId);
+  const tenantId = getTenantId(req);
+  const doc = db.prepare(`
+    SELECT d.* FROM documents d
+    JOIN cases c ON d.case_id = c.id
+    WHERE d.id = ? AND c.tenant_id = ?
+  `).get(documentId, tenantId);
   if (!doc) {
     res.status(404).json({ message: 'المستند غير موجود' });
     return null;
@@ -49,6 +61,7 @@ function requireDocumentAccess(req, res, documentId, { manage = false } = {}) {
 // GET /api/documents - List all documents with search, filtering, and pagination
 router.get('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const { case_id, search, page = 1, limit = 50 } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 50));
@@ -61,10 +74,10 @@ router.get('/', (req, res, next) => {
       LEFT JOIN clients cl ON c.client_id = cl.id
     `;
 
-    const whereClauses = [];
-    const params = [];
+    const whereClauses = ['c.tenant_id = ?'];
+    const params = [tenantId];
 
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
       whereClauses.push(`(
         c.lead_lawyer_id = ? 
         OR EXISTS (SELECT 1 FROM case_lawyers cl2 WHERE cl2.case_id = c.id AND cl2.user_id = ?)
@@ -84,7 +97,7 @@ router.get('/', (req, res, next) => {
       params.push(term, term, term, term);
     }
 
-    const whereStr = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereStr = ` WHERE ${whereClauses.join(' AND ')}`;
 
     const countRow = db.prepare(`SELECT COUNT(*) as total ${baseSql} ${whereStr}`).get(...params);
     const total = countRow ? countRow.total : 0;
@@ -121,6 +134,7 @@ router.get('/', (req, res, next) => {
 // DELETE /api/documents/:id - Delete a document and its physical files
 router.delete('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const docId = req.params.id;
     const doc = requireDocumentAccess(req, res, docId, { manage: true });
     if (!doc) return;
@@ -138,14 +152,14 @@ router.delete('/:id', (req, res, next) => {
       }
     }
 
-    // Delete records from database (document_versions and shares CASCADE)
+    // Delete records from database
     db.prepare('DELETE FROM documents WHERE id = ?').run(docId);
 
     // Activity log
     db.prepare(`
-      INSERT INTO activity_log (user_id, action, entity_type, entity_id, details_json)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(req.user.id, 'DELETE_DOCUMENT', 'document', docId, JSON.stringify({ original_name: doc.original_name }));
+      INSERT INTO activity_log (user_id, action, entity_type, entity_id, details_json, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(req.user.id, 'DELETE_DOCUMENT', 'document', docId, JSON.stringify({ original_name: doc.original_name }), tenantId);
 
     res.json({ success: true, message: 'تم حذف المستند بنجاح' });
   } catch (err) {
@@ -156,6 +170,7 @@ router.delete('/:id', (req, res, next) => {
 // POST /api/documents/upload - Upload file to case
 router.post('/upload', upload.single('file'), (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     if (!req.file) return res.status(400).json({ message: 'يرجى اختيار ملف لرفعه' });
     const { case_id } = req.body;
     if (!case_id) return res.status(400).json({ message: 'معرف القضية مطلوب' });
@@ -165,8 +180,8 @@ router.post('/upload', upload.single('file'), (req, res, next) => {
     }
 
     const stmt = db.prepare(`
-      INSERT INTO documents (original_name, stored_name, file_path, file_size, mime_type, case_id, uploaded_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO documents (original_name, stored_name, file_path, file_size, mime_type, case_id, uploaded_by, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       req.file.originalname,
@@ -175,7 +190,8 @@ router.post('/upload', upload.single('file'), (req, res, next) => {
       req.file.size,
       req.file.mimetype,
       case_id,
-      req.user.id
+      req.user.id,
+      tenantId
     );
 
     // Initial version entry (version 1)
@@ -240,15 +256,16 @@ router.get('/:id/versions', (req, res, next) => {
   }
 });
 
-// POST /api/documents/share - Share document with another lawyer
+// POST /api/documents/share - Share document with another lawyer in the same tenant
 router.post('/share', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const { document_id, shared_with_user_id, permissions = 'view' } = req.body;
 
     const doc = requireDocumentAccess(req, res, document_id, { manage: true });
     if (!doc) return;
-    const recipient = db.prepare('SELECT id FROM users WHERE id = ? AND is_active = 1').get(shared_with_user_id);
-    if (!recipient) return res.status(400).json({ message: 'المستخدم المراد المشاركة معه غير موجود أو غير مفعّل' });
+    const recipient = db.prepare('SELECT id FROM users WHERE id = ? AND tenant_id = ? AND is_active = 1').get(shared_with_user_id, tenantId);
+    if (!recipient) return res.status(400).json({ message: 'المستخدم المراد المشاركة معه غير موجود في هذا المكتب أو غير مفعّل' });
     if (!['view', 'download', 'edit'].includes(permissions)) return res.status(400).json({ message: 'صلاحية المشاركة غير صالحة' });
 
     db.prepare(`

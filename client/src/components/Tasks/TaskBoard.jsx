@@ -100,36 +100,153 @@ export default function TaskBoard() {
     }
   };
 
+  const [isMobile, setIsMobile] = useState(() => {
+    return typeof window !== 'undefined' && window.innerWidth <= 768;
+  });
+  const [activeMobileCol, setActiveMobileCol] = useState('todo');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const columns = [
-    { id: 'todo', title: 'قيد الانتظار (To Do)', color: 'var(--text-muted)' },
-    { id: 'in_progress', title: 'جاري العمل (In Progress)', color: 'var(--info)' },
-    { id: 'review', title: 'تحت المراجعة (Review)', color: 'var(--warning)' },
-    { id: 'done', title: 'مكتملة (Done)', color: 'var(--success)' }
+    { id: 'todo', title: 'قيد الانتظار', fullTitle: 'قيد الانتظار (To Do)', color: 'var(--text-muted)' },
+    { id: 'in_progress', title: 'جاري العمل', fullTitle: 'جاري العمل (In Progress)', color: 'var(--info)' },
+    { id: 'review', title: 'المراجعة', fullTitle: 'تحت المراجعة (Review)', color: 'var(--warning)' },
+    { id: 'done', title: 'مكتملة', fullTitle: 'مكتملة (Done)', color: 'var(--success)' }
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', height: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>لوحة متابعة المهام والتكليفات (Kanban)</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>لوحة متابعة المهام (Kanban)</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            سحب وإفلات المهام ومتابعة سير الإجراءات وتعديلها بسهولة
+            متابعة سير الإجراءات وتعديل وتوزيع المهام بسهولة
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button icon={FileText} onClick={() => handleExport('pdf')} variant="secondary" disabled={exporting}>
-            {exporting ? 'جاري التصدير...' : 'تصدير PDF'}
+            {exporting ? '...' : 'PDF'}
           </Button>
           <Button icon={FileSpreadsheet} onClick={() => handleExport('excel')} variant="secondary" disabled={exporting}>
-            {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+            {exporting ? '...' : 'Excel'}
           </Button>
-          <Button icon={Plus} onClick={() => { setEditingTask(null); setIsModalOpen(true); }}>إسناد مهمة جديدة</Button>
+          <Button icon={Plus} onClick={() => { setEditingTask(null); setIsModalOpen(true); }}>مهمة جديدة</Button>
         </div>
       </div>
 
+      {/* Mobile Column Segmented Switcher */}
+      {isMobile && (
+        <div style={{
+          display: 'flex',
+          gap: '6px',
+          background: 'var(--bg-card)',
+          padding: '4px',
+          borderRadius: '10px',
+          border: '1px solid var(--border-color)',
+          overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch'
+        }}>
+          {columns.map((col) => {
+            const count = tasks.filter(t => t.status === col.id).length;
+            const isSelected = activeMobileCol === col.id;
+            return (
+              <button
+                key={col.id}
+                type="button"
+                onClick={() => setActiveMobileCol(col.id)}
+                style={{
+                  flex: 1,
+                  minWidth: '70px',
+                  whiteSpace: 'nowrap',
+                  padding: '8px 6px',
+                  borderRadius: '7px',
+                  border: 'none',
+                  background: isSelected ? 'var(--primary)' : 'transparent',
+                  color: isSelected ? '#ffffff' : 'var(--text-muted)',
+                  fontSize: '0.78rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                  transition: 'all 0.18s ease'
+                }}
+              >
+                <span>{col.title}</span>
+                <span style={{
+                  background: isSelected ? 'rgba(0,0,0,0.22)' : 'var(--bg-input)',
+                  color: isSelected ? '#ffffff' : 'var(--primary)',
+                  padding: '1px 5px',
+                  borderRadius: '10px',
+                  fontSize: '0.72rem'
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {loading ? (
         <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '50px' }}>جاري تحميل لوحة المهام...</div>
+      ) : isMobile ? (
+        /* Mobile Single-Column Task List View */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+          {(() => {
+            const activeColObj = columns.find(c => c.id === activeMobileCol) || columns[0];
+            const colTasks = tasks.filter(t => t.status === activeColObj.id);
+
+            return (
+              <div
+                className="glass-card"
+                style={{
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  borderTop: `3px solid ${activeColObj.color}`
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: activeColObj.color, margin: 0 }}>
+                    {activeColObj.fullTitle}
+                  </h3>
+                  <span className="badge" style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: '700' }}>
+                    {colTasks.length} مهام
+                  </span>
+                </div>
+
+                {colTasks.length === 0 ? (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-dim)', textAlign: 'center', padding: '30px 10px' }}>
+                    لا توجد مهام في هذه المرحلة حالياً
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {colTasks.map((t) => (
+                      <TaskCard
+                        key={t.id}
+                        task={t}
+                        onMoveStatus={handleMoveStatus}
+                        onEdit={handleEditTask}
+                        onDelete={handleDeleteTask}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
       ) : (
+        /* Desktop Multi-Column Kanban Board */
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '18px', flex: 1, overflowX: 'auto', minWidth: '950px' }}>
           {columns.map((col) => {
             const colTasks = tasks.filter(t => t.status === col.id);
@@ -159,7 +276,7 @@ export default function TaskBoard() {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `2px solid ${col.color}`, paddingBottom: '10px' }}>
-                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: col.color }}>{col.title}</h3>
+                  <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: col.color }}>{col.fullTitle}</h3>
                   <span className="badge" style={{ background: 'var(--primary-light)', color: 'var(--primary)', fontWeight: '700' }}>{colTasks.length}</span>
                 </div>
 

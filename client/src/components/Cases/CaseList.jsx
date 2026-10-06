@@ -229,29 +229,31 @@ export default function CaseList({ onViewCase }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>سجل القضايا والملفات</h1>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>سجل القضايا والملفات</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>إدارة متابعة وتداول قضايا المكتب والتحكم في الحالات</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button icon={FileText} onClick={() => handleExport('pdf')} variant="secondary" disabled={exporting}>
-            {exporting ? 'جاري التصدير...' : 'تصدير PDF'}
+            {exporting ? '...' : 'PDF'}
           </Button>
           <Button icon={FileSpreadsheet} onClick={() => handleExport('excel')} variant="secondary" disabled={exporting}>
-            {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+            {exporting ? '...' : 'Excel'}
           </Button>
           <Button icon={Plus} onClick={() => { setEditingCase(null); setIsModalOpen(true); }}>إضافة قضية جديدة</Button>
         </div>
       </div>
 
       {/* Filters Bar */}
-      <div className="glass-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-        <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="بحث برقم القضية، العنوان، أو اسم العميل..." />
+      <div className="glass-card" style={{ padding: '14px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 240px' }}>
+          <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="بحث برقم القضية، العنوان، أو اسم العميل..." />
+        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>الحالة:</span>
-          <select className="form-select" style={{ padding: '6px 12px', fontSize: '0.85rem' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 auto' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>الحالة:</span>
+          <select className="form-select" style={{ padding: '6px 12px', fontSize: '0.85rem', flex: 1 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">الكل</option>
             <option value="active">نشطة (Active)</option>
             <option value="pending">معلقة (Pending)</option>
@@ -260,9 +262,9 @@ export default function CaseList({ onViewCase }) {
           </select>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>النوع:</span>
-          <select className="form-select" style={{ padding: '6px 12px', fontSize: '0.85rem' }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 auto' }}>
+          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>النوع:</span>
+          <select className="form-select" style={{ padding: '6px 12px', fontSize: '0.85rem', flex: 1 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="all">كل الأنواع</option>
             <option value="تجاري">تجاري</option>
             <option value="مدني">مدني</option>

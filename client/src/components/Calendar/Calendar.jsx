@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Plus, LayoutGrid, List, Trash2, Edit2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, LayoutGrid, List, Trash2, Edit2, Printer } from 'lucide-react';
 import EventCard from './EventCard';
 import EventForm from './EventForm';
 import CalendarGrid from './CalendarGrid';
@@ -15,7 +15,10 @@ export default function Calendar() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
-
+  
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportWeek, setExportWeek] = useState('current');
+  const [exportFormat, setExportFormat] = useState('pdf');
   const fetchEvents = async () => {
     setLoading(true);
     try {
@@ -61,6 +64,36 @@ export default function Calendar() {
       }
     } catch (err) {
       alert('حدث خطأ أثناء الاتصال بالخادم');
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      let url = `/api/export/events?format=${exportFormat}`;
+      if (exportWeek !== 'all') {
+        url += `&week=${exportWeek}`;
+      }
+
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Export failed');
+      
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = downloadUrl;
+      a.download = `events_${exportWeek}.${exportFormat === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      setIsExportModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء التصدير');
     }
   };
 
@@ -120,6 +153,9 @@ export default function Calendar() {
             </button>
           </div>
 
+          <Button icon={Printer} variant="secondary" onClick={() => setIsExportModalOpen(true)}>
+            طباعة / تصدير
+          </Button>
           <Button icon={Plus} onClick={() => handleOpenCreate()}>إضافة موعد جديد</Button>
         </div>
       </div>
@@ -137,7 +173,7 @@ export default function Calendar() {
           لا توجد مواعيد أو جلسات مسجلة في التقويم حالياً
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '18px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: '14px' }}>
           {events.map((evt) => (
             <EventCard
               key={evt.id}
@@ -160,6 +196,42 @@ export default function Calendar() {
           onSaved={() => { setIsModalOpen(false); setEditingEvent(null); fetchEvents(); }}
           onCancel={() => { setIsModalOpen(false); setEditingEvent(null); }}
         />
+      </Modal>
+
+      <Modal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title="طباعة / تصدير جدول المواعيد"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>الفترة</label>
+            <select 
+              value={exportWeek} 
+              onChange={(e) => setExportWeek(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+            >
+              <option value="current">الأسبوع الحالي</option>
+              <option value="next">الأسبوع القادم</option>
+              <option value="all">جميع المواعيد</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem' }}>الصيغة</label>
+            <select 
+              value={exportFormat} 
+              onChange={(e) => setExportFormat(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+            >
+              <option value="pdf">PDF (طباعة)</option>
+              <option value="excel">Excel (جداول)</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px', justifyContent: 'flex-end' }}>
+            <Button variant="secondary" onClick={() => setIsExportModalOpen(false)}>إلغاء</Button>
+            <Button onClick={handleExport} icon={Printer}>تصدير</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

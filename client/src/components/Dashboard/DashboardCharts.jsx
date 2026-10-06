@@ -28,8 +28,32 @@ export default function DashboardCharts({ cases = [], tasks = [], invoices = [],
     .reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
   const collectionRate = Math.round((paidAmount / totalInvoiced) * 100);
 
+  const hasData = cases.length > 0 || tasks.length > 0 || invoices.length > 0;
+  if (!hasData) {
+    return (
+      <div className="glass-card" style={{ padding: '24px 20px', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-lg)' }}>
+        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--primary-light)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+          <TrendingUp size={24} color="var(--primary)" />
+        </div>
+        <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '6px' }}>مرحباً بك في لوحة تحليلات المكتب</h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '420px', margin: '0 auto 16px auto', lineHeight: '1.5' }}>
+          ستظهر هنا تلقائياً الرسوم البيانية لتوزيع القضايا ومعدلات إنجاز المهام والتحصيل المالي فور تسجيل أول ملف.
+        </p>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button 
+            type="button" 
+            onClick={() => setActiveTab('cases')} 
+            style={{ padding: '8px 18px', background: 'var(--primary)', color: '#000', border: 'none', borderRadius: 'var(--radius-md)', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}
+          >
+            + تسجيل قضية جديدة
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '16px' }}>
       {/* 1. Case Status Distribution Chart */}
       <div className="glass-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div>

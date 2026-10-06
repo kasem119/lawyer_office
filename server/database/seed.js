@@ -83,10 +83,11 @@ export function seedDatabase() {
     );
   }
 
+  const adminUser = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin');
+
   // Ensure templates exist even if users already existed
   const templateCount = db.prepare('SELECT COUNT(*) as count FROM document_templates').get();
-  if (templateCount.count === 0) {
-    const adminUser = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin') || { id: 1 };
+  if (templateCount.count === 0 && adminUser) {
     const insertTemplate = db.prepare(`
       INSERT INTO document_templates (name, category, content_html, placeholders_json, created_by)
       VALUES (?, ?, ?, ?, ?)
@@ -189,9 +190,8 @@ export function seedDatabase() {
 
   // Ensure activity logs exist for demo/initial view
   const activityCount = db.prepare('SELECT COUNT(*) as count FROM activity_log').get();
-  if (activityCount && activityCount.count === 0) {
-    const adminUser = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('admin') || { id: 1 };
-    const lawyerUser = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('lawyer') || { id: 2 };
+  if (activityCount && activityCount.count === 0 && adminUser) {
+    const lawyerUser = db.prepare('SELECT id FROM users WHERE role = ? LIMIT 1').get('lawyer') || adminUser;
 
     const insertActivity = db.prepare(`
       INSERT INTO activity_log (user_id, action, entity_type, entity_id, details_json, created_at)

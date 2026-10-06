@@ -5,6 +5,10 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authenticateToken);
 
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
+
 const VALID_CATEGORIES = ['contract', 'power_of_attorney', 'letter', 'motion', 'memo', 'other'];
 
 // Helper to extract {{placeholder}} tags from HTML content
@@ -22,19 +26,21 @@ function extractPlaceholders(contentHtml) {
   return Array.from(matches);
 }
 
-// GET /api/templates - Get all document templates (optional ?category= filter)
+// GET /api/templates - Get document templates for this tenant (plus shared system templates)
 router.get('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const { category } = req.query;
     let sql = `
       SELECT t.*, u.name as created_by_name
       FROM document_templates t
-      JOIN users u ON t.created_by = u.id
+      LEFT JOIN users u ON t.created_by = u.id
+      WHERE (t.tenant_id = ? OR t.tenant_id IS NULL OR t.tenant_id = 0)
     `;
-    const params = [];
+    const params = [tenantId];
 
     if (category && VALID_CATEGORIES.includes(category)) {
-      sql += ` WHERE t.category = ?`;
+      sql += ` AND t.category = ?`;
       params.push(category);
     }
 
@@ -74,12 +80,13 @@ router.get('/', (req, res, next) => {
 // GET /api/templates/:id - Get single template by ID
 router.get('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const template = db.prepare(`
       SELECT t.*, u.name as created_by_name
       FROM document_templates t
-      JOIN users u ON t.created_by = u.id
-      WHERE t.id = ?
-    `).get(req.params.id);
+      LEFT JOIN users u ON t.created_by = u.id
+      WHERE t.id = ? AND (t.tenant_id = ? OR t.tenant_id IS NULL OR t.tenant_id = 0)
+    `).get(req.params.id, tenantId);
 
     if (!template) {
       return res.status(404).json({ success: false, message: 'القالب غير موجود' });
@@ -113,6 +120,7 @@ router.get('/:id', (req, res, next) => {
 // POST /api/templates - Create a new document template
 router.post('/', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const { name, category = 'other', content_html, placeholders_json } = req.body;
 
     if (!name || !name.trim()) {
@@ -144,8 +152,8 @@ router.post('/', (req, res, next) => {
     const finalPlaceholdersJson = JSON.stringify(parsedPlaceholders);
 
     const stmt = db.prepare(`
-      INSERT INTO document_templates (name, category, content_html, placeholders_json, created_by)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO document_templates (name, category, content_html, placeholders_json, created_by, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
     const result = stmt.run(
@@ -153,13 +161,14 @@ router.post('/', (req, res, next) => {
       validCategory,
       content_html,
       finalPlaceholdersJson,
-      req.user.id
+      req.user.id,
+      tenantId
     );
 
     const createdTemplate = db.prepare(`
       SELECT t.*, u.name as created_by_name
       FROM document_templates t
-      JOIN users u ON t.created_by = u.id
+      LEFT JOIN users u ON t.created_by = u.id
       WHERE t.id = ?
     `).get(result.lastInsertRowid);
 
@@ -179,12 +188,18 @@ router.post('/', (req, res, next) => {
 // PUT /api/templates/:id - Update an existing template
 router.put('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const { name, category, content_html, placeholders_json } = req.body;
     const templateId = req.params.id;
 
     const existing = db.prepare('SELECT * FROM document_templates WHERE id = ?').get(templateId);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'القالب غير موجود' });
+    }
+
+    // Only allow editing if created by this tenant (or super_admin)
+    if (existing.tenant_id && existing.tenant_id !== tenantId && req.user.role !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'غير مصرح لك بتعديل هذا القالب' });
     }
 
     const updatedName = name && name.trim() ? name.trim() : existing.name;
@@ -217,7 +232,7 @@ router.put('/:id', (req, res, next) => {
     const updatedTemplate = db.prepare(`
       SELECT t.*, u.name as created_by_name
       FROM document_templates t
-      JOIN users u ON t.created_by = u.id
+      LEFT JOIN users u ON t.created_by = u.id
       WHERE t.id = ?
     `).get(templateId);
 
@@ -237,10 +252,15 @@ router.put('/:id', (req, res, next) => {
 // DELETE /api/templates/:id - Delete a document template
 router.delete('/:id', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const templateId = req.params.id;
     const existing = db.prepare('SELECT * FROM document_templates WHERE id = ?').get(templateId);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'القالب غير موجود' });
+    }
+
+    if (existing.tenant_id && existing.tenant_id !== tenantId && req.user.role !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'غير مصرح لك بحذف هذا القالب' });
     }
 
     db.prepare('DELETE FROM document_templates WHERE id = ?').run(templateId);
@@ -257,13 +277,14 @@ router.delete('/:id', (req, res, next) => {
 // POST /api/templates/:id/generate - Generate document from template with placeholder values
 router.post('/:id/generate', (req, res, next) => {
   try {
+    const tenantId = getTenantId(req);
     const templateId = req.params.id;
     const template = db.prepare(`
       SELECT t.*, u.name as created_by_name
       FROM document_templates t
-      JOIN users u ON t.created_by = u.id
-      WHERE t.id = ?
-    `).get(templateId);
+      LEFT JOIN users u ON t.created_by = u.id
+      WHERE t.id = ? AND (t.tenant_id = ? OR t.tenant_id IS NULL OR t.tenant_id = 0)
+    `).get(templateId, tenantId);
 
     if (!template) {
       return res.status(404).json({ success: false, message: 'القالب غير موجود' });
@@ -271,16 +292,14 @@ router.post('/:id/generate', (req, res, next) => {
 
     const values = req.body.values || req.body.placeholders || req.body || {};
 
-    // Replace all {{placeholder}} occurrences with provided values
     let generatedHtml = template.content_html;
     
-    // Support regex replacement for {{key}} and {{ key }}
     generatedHtml = generatedHtml.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (fullMatch, key) => {
       const trimmedKey = key.trim();
       if (values[trimmedKey] !== undefined && values[trimmedKey] !== null && String(values[trimmedKey]).trim() !== '') {
         return String(values[trimmedKey]);
       }
-      return fullMatch; // Keep placeholder if no value supplied
+      return fullMatch;
     });
 
     res.json({

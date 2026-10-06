@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, FileText, Calendar, CheckSquare, Users, Upload, Plus, Download, History, Share2, StickyNote, CheckCircle2, RotateCcw, Edit, Trash2, Printer, Receipt } from 'lucide-react';
+import { ArrowRight, FileText, Calendar, CheckSquare, Users, Upload, Plus, Download, History, Share2, StickyNote, CheckCircle2, RotateCcw, Edit, Trash2, Printer, Receipt, Bell } from 'lucide-react';
 import Button from '../Shared/Button';
 import CaseStatusBadge from './CaseStatusBadge';
 import Modal from '../Shared/Modal';
@@ -22,6 +22,7 @@ export default function CaseDetails({ caseId, onBack }) {
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedDocForVersions, setSelectedDocForVersions] = useState(null);
@@ -53,8 +54,23 @@ export default function CaseDetails({ caseId, onBack }) {
 
   const { case: caseItem, assignedLawyers, documents, events, tasks } = data;
 
-  const handleDownloadDoc = (docId) => {
-    window.open(`${getServerUrl()}/api/documents/download/${docId}`, '_blank');
+  const handleDownloadDoc = async (docId, docName) => {
+    try {
+      const res = await apiFetch(`/documents/download/${docId}`);
+      if (!res.ok) throw new Error('فشل التحميل');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = docName || `document_${docId}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert('تعذر تحميل المستند');
+    }
   };
 
   const handleStatusChange = async (newStatus) => {
@@ -241,11 +257,12 @@ export default function CaseDetails({ caseId, onBack }) {
       </div>
 
       {/* Tabs Navigation */}
-      <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px' }}>
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', whiteSpace: 'nowrap' }} className="hide-scrollbar">
         <button
           onClick={() => setActiveTab('documents')}
           style={{
-            padding: '10px 18px',
+            flexShrink: 0,
+            padding: '10px 16px',
             borderRadius: '8px',
             border: 'none',
             background: activeTab === 'documents' ? 'var(--primary-light)' : 'transparent',
@@ -264,7 +281,8 @@ export default function CaseDetails({ caseId, onBack }) {
         <button
           onClick={() => setActiveTab('events')}
           style={{
-            padding: '10px 18px',
+            flexShrink: 0,
+            padding: '10px 16px',
             borderRadius: '8px',
             border: 'none',
             background: activeTab === 'events' ? 'var(--primary-light)' : 'transparent',
@@ -283,7 +301,8 @@ export default function CaseDetails({ caseId, onBack }) {
         <button
           onClick={() => setActiveTab('tasks')}
           style={{
-            padding: '10px 18px',
+            flexShrink: 0,
+            padding: '10px 16px',
             borderRadius: '8px',
             border: 'none',
             background: activeTab === 'tasks' ? 'var(--primary-light)' : 'transparent',
@@ -302,7 +321,8 @@ export default function CaseDetails({ caseId, onBack }) {
         <button
           onClick={() => setActiveTab('notes')}
           style={{
-            padding: '10px 18px',
+            flexShrink: 0,
+            padding: '10px 16px',
             borderRadius: '8px',
             border: 'none',
             background: activeTab === 'notes' ? 'var(--primary-light)' : 'transparent',
@@ -321,7 +341,8 @@ export default function CaseDetails({ caseId, onBack }) {
         <button
           onClick={() => setActiveTab('finance')}
           style={{
-            padding: '10px 18px',
+            flexShrink: 0,
+            padding: '10px 16px',
             borderRadius: '8px',
             border: 'none',
             background: activeTab === 'finance' ? 'var(--primary-light)' : 'transparent',
@@ -340,7 +361,8 @@ export default function CaseDetails({ caseId, onBack }) {
         <button
           onClick={() => setActiveTab('lawyers')}
           style={{
-            padding: '10px 18px',
+            flexShrink: 0,
+            padding: '10px 16px',
             borderRadius: '8px',
             border: 'none',
             background: activeTab === 'lawyers' ? 'var(--primary-light)' : 'transparent',
@@ -376,7 +398,7 @@ export default function CaseDetails({ caseId, onBack }) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <Button variant="secondary" icon={Download} onClick={() => handleDownloadDoc(doc.id)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>تحميل</Button>
+                    <Button variant="secondary" icon={Download} onClick={() => handleDownloadDoc(doc.id, doc.original_name)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>تحميل</Button>
                     <Button variant="secondary" icon={History} onClick={() => setSelectedDocForVersions(doc)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>الإصدارات</Button>
                     <Button variant="secondary" icon={Share2} onClick={() => setSelectedDocForShare(doc)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>مشاركة</Button>
                   </div>
@@ -395,11 +417,62 @@ export default function CaseDetails({ caseId, onBack }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {events.map((evt) => (
                 <div key={evt.id} style={{ padding: '14px', background: 'var(--bg-item)', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderRight: '4px solid var(--warning)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '700' }}>
                     <span>{evt.title}</span>
-                    <span style={{ color: 'var(--primary)' }}>{evt.date} {evt.time}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ color: 'var(--primary)', fontSize: '0.9rem' }}>{evt.date} {evt.time}</span>
+                      <button
+                        onClick={() => {
+                          setEditingEvent(evt);
+                          setIsEventModalOpen(true);
+                        }}
+                        style={{
+                          background: 'rgba(59, 130, 246, 0.12)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          fontSize: '0.78rem',
+                          color: 'var(--primary)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: '600'
+                        }}
+                        title="تعديل الموعد"
+                      >
+                        <Edit size={12} /> تعديل
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await apiFetch(`/events/${evt.id}/remind`, { method: 'POST' });
+                            const d = await res.json();
+                            alert(d.message || 'تم إرسال التنبيه');
+                          } catch (e) {
+                            alert('تعذر إرسال التنبيه');
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(234, 179, 8, 0.12)',
+                          border: '1px solid rgba(234, 179, 8, 0.3)',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          fontSize: '0.78rem',
+                          color: 'var(--warning)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: '600'
+                        }}
+                        title="إرسال تذكير فوري للمحامي المكلف"
+                      >
+                        <Bell size={12} /> تذكير بالجلسة
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                     الموقع: {evt.location || 'غير محدد'} | {evt.description}
                   </div>
                 </div>
@@ -417,11 +490,40 @@ export default function CaseDetails({ caseId, onBack }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {tasks.map((tsk) => (
                 <div key={tsk.id} style={{ padding: '14px', background: 'var(--bg-item)', borderRadius: '8px', border: '1px solid var(--border-subtle)', borderRight: '4px solid var(--info)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '700' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '700' }}>
                     <span>{tsk.title}</span>
-                    <span className={`badge badge-${tsk.status}`}>{tsk.status}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span className={`badge badge-${tsk.status}`}>{tsk.status}</span>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await apiFetch(`/tasks/${tsk.id}/remind`, { method: 'POST' });
+                            const d = await res.json();
+                            alert(d.message || 'تم إرسال التذكير');
+                          } catch (e) {
+                            alert('تعذر إرسال التذكير');
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(59, 130, 246, 0.12)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          fontSize: '0.78rem',
+                          color: 'var(--info)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: '600'
+                        }}
+                        title="إرسال تذكير فوري للمحامي المكلف"
+                      >
+                        <Bell size={12} /> تذكير المكلف
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                     المكلف: {tsk.assigned_to_name} | تاريخ الاستحقاق: {tsk.due_date || 'غير محدد'}
                   </div>
                 </div>
@@ -469,8 +571,8 @@ export default function CaseDetails({ caseId, onBack }) {
         <DocumentUpload caseId={caseId} onUploaded={() => { setIsUploadModalOpen(false); fetchDetails(); }} />
       </Modal>
 
-      <Modal isOpen={isEventModalOpen} onClose={() => setIsEventModalOpen(false)} title="إضافة موعد جلسة / اجتماع">
-        <EventForm defaultCaseId={caseId} onSaved={() => { setIsEventModalOpen(false); fetchDetails(); }} />
+      <Modal isOpen={isEventModalOpen} onClose={() => { setIsEventModalOpen(false); setEditingEvent(null); }} title={editingEvent ? "تعديل الموعد / الجلسة" : "إضافة موعد جلسة / اجتماع"}>
+        <EventForm initialValues={editingEvent} defaultCaseId={caseId} onSaved={() => { setIsEventModalOpen(false); setEditingEvent(null); fetchDetails(); }} onCancel={() => { setIsEventModalOpen(false); setEditingEvent(null); }} />
       </Modal>
 
       <Modal isOpen={isTaskModalOpen} onClose={() => setIsTaskModalOpen(false)} title="إضافة مهمة جديدة للقضية">

@@ -170,6 +170,10 @@ export default function CameraDocumentUpload({ caseId, onUploaded }) {
   };
 
   const handleSubmit = async () => {
+    if (!caseId) {
+      setError('يرجى اختيار القضية المرتبطة بالمستند أولاً.');
+      return;
+    }
     if (shots.length === 0) {
       setError('التقط صورة واحدة على الأقل.');
       return;

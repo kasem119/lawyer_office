@@ -18,7 +18,7 @@ Environment=PORT=3000
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/opt/lawyer_office/server
+ReadWritePaths=/opt/lawyer_office
 ProtectHome=true
 
 [Install]

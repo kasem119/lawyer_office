@@ -22,9 +22,11 @@ export default function FinancePage() {
 
       <div style={{ 
         display: 'flex', 
-        gap: '10px', 
+        gap: '8px', 
         borderBottom: '1px solid var(--border-color)',
-        paddingBottom: '8px'
+        paddingBottom: '4px',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch'
       }}>
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -38,18 +40,20 @@ export default function FinancePage() {
                 color: isActive ? 'var(--primary)' : 'var(--text-muted)',
                 border: 'none',
                 borderBottom: isActive ? '3px solid var(--primary)' : '3px solid transparent',
-                padding: '10px 18px',
+                padding: '9px 14px',
                 borderRadius: 'var(--radius-sm) var(--radius-sm) 0 0',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '6px',
                 fontWeight: isActive ? '700' : '500',
-                fontSize: '0.95rem',
+                fontSize: '0.88rem',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
                 transition: 'all 0.2s ease'
               }}
             >
-              <Icon size={18} />
+              <Icon size={17} />
               <span>{tab.label}</span>
             </button>
           );

@@ -1,12 +1,15 @@
 import express from 'express';
 import db from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { canAccessCase } from '../middleware/permissions.js';
 import { createNotification } from '../services/notificationService.js';
 
 const router = express.Router();
-
-// Apply auth middleware to all routes
 router.use(authenticateToken);
+
+function getTenantId(req) {
+  return req.user.tenant_id || 1;
+}
 
 // GET /api/case-notes/:caseId
 router.get('/:caseId', (req, res) => {
@@ -14,16 +17,22 @@ router.get('/:caseId', (req, res) => {
     const { caseId } = req.params;
     const userId = req.user.id;
     const role = req.user.role;
+    const tenantId = getTenantId(req);
+
+    if (!canAccessCase(req.user, caseId)) {
+      return res.status(403).json({ success: false, message: 'ليس لديك صلاحية الوصول لهذه القضية' });
+    }
 
     let query = `
       SELECT cn.*, u.name as author_name 
       FROM case_notes cn
       JOIN users u ON cn.created_by = u.id
-      WHERE cn.case_id = ? 
+      JOIN cases c ON cn.case_id = c.id
+      WHERE cn.case_id = ? AND c.tenant_id = ?
     `;
-    const params = [caseId];
+    const params = [caseId, tenantId];
 
-    if (role !== 'admin') {
+    if (role !== 'admin' && role !== 'super_admin') {
       // Lawyer sees non-private + own private notes
       query += ` AND (cn.is_private = 0 OR cn.created_by = ?)`;
       params.push(userId);
@@ -44,9 +53,14 @@ router.post('/', (req, res) => {
   try {
     const { case_id, content, note_type = 'note', is_private = 0 } = req.body;
     const userId = req.user.id;
+    const tenantId = getTenantId(req);
 
     if (!content || content.trim() === '') {
       return res.status(400).json({ success: false, message: 'محتوى الملاحظة مطلوب' });
+    }
+
+    if (!canAccessCase(req.user, case_id)) {
+      return res.status(403).json({ success: false, message: 'ليس لديك صلاحية إضافة ملاحظة لهذه القضية' });
     }
 
     const result = db.prepare(`
@@ -57,7 +71,7 @@ router.post('/', (req, res) => {
     const newNoteId = result.lastInsertRowid;
 
     // Notify other lawyers assigned to the case
-    const caseDetails = db.prepare(`SELECT title FROM cases WHERE id = ?`).get(case_id);
+    const caseDetails = db.prepare(`SELECT title FROM cases WHERE id = ? AND tenant_id = ?`).get(case_id, tenantId);
     if (caseDetails) {
       const assignedLawyers = db.prepare(`
         SELECT user_id FROM case_lawyers 
@@ -96,13 +110,20 @@ router.put('/:id', (req, res) => {
     const { id } = req.params;
     const { content, note_type } = req.body;
     const userId = req.user.id;
+    const tenantId = getTenantId(req);
 
     if (!content || content.trim() === '') {
       return res.status(400).json({ success: false, message: 'محتوى الملاحظة مطلوب' });
     }
 
-    // Check ownership
-    const note = db.prepare(`SELECT created_by FROM case_notes WHERE id = ?`).get(id);
+    // Check ownership and tenant
+    const note = db.prepare(`
+      SELECT cn.created_by 
+      FROM case_notes cn
+      JOIN cases c ON cn.case_id = c.id
+      WHERE cn.id = ? AND c.tenant_id = ?
+    `).get(id, tenantId);
+    
     if (!note) {
       return res.status(404).json({ success: false, message: 'الملاحظة غير موجودة' });
     }
@@ -130,13 +151,20 @@ router.delete('/:id', (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
     const role = req.user.role;
+    const tenantId = getTenantId(req);
 
-    const note = db.prepare(`SELECT created_by FROM case_notes WHERE id = ?`).get(id);
+    const note = db.prepare(`
+      SELECT cn.created_by 
+      FROM case_notes cn
+      JOIN cases c ON cn.case_id = c.id
+      WHERE cn.id = ? AND c.tenant_id = ?
+    `).get(id, tenantId);
+    
     if (!note) {
       return res.status(404).json({ success: false, message: 'الملاحظة غير موجودة' });
     }
 
-    if (note.created_by !== userId && role !== 'admin') {
+    if (note.created_by !== userId && role !== 'admin' && role !== 'super_admin') {
       return res.status(403).json({ success: false, message: 'غير مصرح لك بحذف هذه الملاحظة' });
     }
 

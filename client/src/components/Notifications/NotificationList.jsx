@@ -1,25 +1,29 @@
 import React from 'react';
-import { CheckCheck, BellOff } from 'lucide-react';
+import { CheckCheck, BellOff, X } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 import EmptyState from '../Shared/EmptyState';
 
 export default function NotificationList({ onClose }) {
   const { notifications, markAsRead, markAllAsRead } = useNotifications();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   return (
     <div
       className="glass-card animate-slideDown"
       style={{
-        position: 'absolute',
-        left: '0',
-        top: '48px',
-        width: '350px',
-        maxHeight: '430px',
+        position: isMobile ? 'fixed' : 'absolute',
+        left: isMobile ? '12px' : '0',
+        right: isMobile ? '12px' : 'auto',
+        top: isMobile ? '66px' : '48px',
+        width: isMobile ? 'auto' : '350px',
+        maxWidth: isMobile ? 'calc(100vw - 24px)' : '350px',
+        maxHeight: isMobile ? '70vh' : '430px',
         overflowY: 'auto',
         zIndex: 10000,
         padding: '16px',
         boxShadow: 'var(--shadow-lg)',
-        border: '1px solid var(--border-color)'
+        border: '1px solid var(--border-color)',
+        borderRadius: 'var(--radius-md)'
       }}
     >
       <div
@@ -32,29 +36,58 @@ export default function NotificationList({ onClose }) {
           paddingBottom: '8px'
         }}
       >
-        <h4 style={{ fontSize: '0.92rem', color: 'var(--primary)', fontWeight: '700' }}>
-          الإشعارات والتنبيهات
-        </h4>
-        {notifications.length > 0 && (
-          <button
-            onClick={markAllAsRead}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              fontSize: '0.78rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              transition: 'color 0.15s ease'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
-            onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-          >
-            <CheckCheck size={14} /> تعيين الكل كـ مقروء
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h4 style={{ fontSize: '0.92rem', color: 'var(--primary)', fontWeight: '700', margin: 0 }}>
+            الإشعارات والتنبيهات
+          </h4>
+          {notifications.length > 0 && (
+            <span className="badge badge-active" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+              {notifications.length}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {notifications.length > 0 && (
+            <button
+              onClick={markAllAsRead}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'color 0.15s ease'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+              onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+            >
+              <CheckCheck size={14} /> مقروء
+            </button>
+          )}
+
+          {onClose && (
+            <button
+              onClick={onClose}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-dim)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '2px'
+              }}
+              title="إغلاق"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {notifications.length === 0 ? (

@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, File, Camera } from 'lucide-react';
 import Button from '../Shared/Button';
 import CameraDocumentUpload from './CameraDocumentUpload';
 import { apiFetch } from '../../api/client';
 
-export default function DocumentUpload({ caseId, onUploaded }) {
+export default function DocumentUpload({ caseId: propCaseId, onUploaded }) {
   // tab: 'file' = رفع ملف، 'camera' = تصوير مستند
   const [tab, setTab] = useState('file');
   const [file, setFile] = useState(null);
+  const [selectedCaseId, setSelectedCaseId] = useState(propCaseId || '');
+  const [casesList, setCasesList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const activeCaseId = propCaseId || selectedCaseId;
+
+  useEffect(() => {
+    if (!propCaseId) {
+      apiFetch('/cases')
+        .then((res) => (res.ok ? res.json() : { cases: [] }))
+        .then((data) => setCasesList(data.cases || []))
+        .catch(() => {});
+    }
+  }, [propCaseId]);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -19,13 +32,14 @@ export default function DocumentUpload({ caseId, onUploaded }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!activeCaseId) return setError('يرجى اختيار القضية المرتبطة بالمستند أولاً');
     if (!file) return setError('يرجى تحديد ملف لرفعه');
     setLoading(true);
     setError('');
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('case_id', caseId);
+    formData.append('case_id', activeCaseId);
 
     try {
       const res = await apiFetch('/documents/upload', {
@@ -34,7 +48,7 @@ export default function DocumentUpload({ caseId, onUploaded }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'فشل رفع الملف');
-      onUploaded();
+      if (onUploaded) onUploaded();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -44,6 +58,28 @@ export default function DocumentUpload({ caseId, onUploaded }) {
 
   return (
     <div>
+      {/* اختيار القضية إذا لم تكن محددة مسبقاً */}
+      {!propCaseId && (
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '6px' }}>
+            اختر القضية المرتبطة بالمستند: <span style={{ color: 'var(--error)' }}>*</span>
+          </label>
+          <select
+            className="form-select"
+            value={selectedCaseId}
+            onChange={(e) => setSelectedCaseId(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', fontSize: '0.9rem' }}
+          >
+            <option value="">-- يرجى اختيار القضية من القائمة --</option>
+            {casesList.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.case_number} - {c.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* تبويبات: ملف / تصوير */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
         <button
@@ -67,7 +103,7 @@ export default function DocumentUpload({ caseId, onUploaded }) {
       </div>
 
       {tab === 'camera' ? (
-        <CameraDocumentUpload caseId={caseId} onUploaded={onUploaded} />
+        <CameraDocumentUpload caseId={activeCaseId} onUploaded={onUploaded} />
       ) : (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {error && <div style={{ background: 'rgba(244,63,94,0.2)', color: 'var(--error)', padding: '10px', borderRadius: '6px', fontSize: '0.9rem' }}>{error}</div>}
