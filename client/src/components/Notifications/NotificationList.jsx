@@ -4,7 +4,8 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import EmptyState from '../Shared/EmptyState';
 
 export default function NotificationList({ onClose }) {
-  const { notifications, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, markAsRead, markAllAsRead, deviceSupport, deviceEnabled, deviceBusy,
+    deviceError, changeDeviceNotifications, testNotification } = useNotifications();
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   return (
@@ -88,6 +89,20 @@ export default function NotificationList({ onClose }) {
             </button>
           )}
         </div>
+      </div>
+
+      <div style={{ marginBottom: '12px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+        {deviceSupport === 'install' ? <p>على iPhone: أضف التطبيق للشاشة الرئيسية من Safari ثم افتحه منها لتفعيل الإشعارات.</p>
+          : deviceSupport === 'https' ? <p>إشعارات الهاتف تحتاج فتح التطبيق عبر رابط HTTPS آمن.</p>
+          : deviceSupport === 'unsupported' ? <p>هذا المتصفح لا يدعم إشعارات الجهاز. استخدم متصفحاً حديثاً.</p>
+          : <>
+            <button className="btn btn-primary" type="button" disabled={deviceBusy} onClick={changeDeviceNotifications}>
+              {deviceBusy ? 'جارٍ الإعداد…' : deviceEnabled ? 'إيقاف إشعارات هذا الجهاز' : 'تفعيل إشعارات هذا الجهاز'}
+            </button>
+            {deviceEnabled && <button className="btn" type="button" disabled={deviceBusy} onClick={testNotification}>اختبار الإشعارات</button>}
+            <p>{deviceEnabled ? 'إشعارات الجهاز مفعّلة.' : 'فعّل الإشعارات واسمح بها عند ظهور طلب المتصفح.'}</p>
+          </>}
+        {deviceError && <p role="alert" style={{ color: 'var(--error)' }}>{deviceError}</p>}
       </div>
 
       {notifications.length === 0 ? (

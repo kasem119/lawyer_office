@@ -150,6 +150,10 @@ router.delete('/:id', (req, res, next) => {
       return res.status(403).json({ message: 'فقط مدير النظام يمكنه حذف العملاء' });
     }
 
+    if (!db.prepare('SELECT id FROM clients WHERE id = ? AND tenant_id = ?').get(req.params.id, tenantId)) {
+      return res.status(404).json({ message: 'العميل غير موجود' });
+    }
+
     const cases = db.prepare('SELECT id FROM cases WHERE client_id = ? AND tenant_id = ?').all(req.params.id, tenantId);
     if (cases.length > 0) {
       return res.status(400).json({

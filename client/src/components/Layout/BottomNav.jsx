@@ -4,19 +4,18 @@ import {
   Briefcase,
   Users,
   Calendar,
-  Menu,
   Crown,
   UserCog,
   Activity
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-export default function BottomNav({ activeTab, onSelectTab, onOpenDrawer }) {
+export default function BottomNav({ activeTab, onSelectTab, onOpenDrawer, drawerOpen = false }) {
   const { isSuperAdmin } = useAuth();
 
   const isCasesActive = activeTab === 'cases' || activeTab === 'case_details';
   const isClientsActive = activeTab === 'clients' || activeTab === 'client_details';
-  const isCalendarActive = activeTab === 'calendar' || activeTab === 'tasks';
+  const isCalendarActive = activeTab === 'calendar';
   const isDashboardActive = activeTab === 'dashboard';
 
   let navItems = [];
@@ -43,13 +42,6 @@ export default function BottomNav({ activeTab, onSelectTab, onOpenDrawer }) {
         icon: Activity,
         isActive: activeTab === 'activity_log',
         onClick: () => onSelectTab('activity_log')
-      },
-      {
-        id: 'menu',
-        label: 'المزيد',
-        icon: Menu,
-        isActive: activeTab !== 'platform_admin' && activeTab !== 'users' && activeTab !== 'activity_log',
-        onClick: onOpenDrawer
       }
     ];
   } else {
@@ -81,13 +73,6 @@ export default function BottomNav({ activeTab, onSelectTab, onOpenDrawer }) {
         icon: Calendar,
         isActive: isCalendarActive,
         onClick: () => onSelectTab('calendar')
-      },
-      {
-        id: 'menu',
-        label: 'المزيد',
-        icon: Menu,
-        isActive: !isDashboardActive && !isCasesActive && !isClientsActive && !isCalendarActive,
-        onClick: onOpenDrawer
       }
     ];
   }
@@ -96,6 +81,7 @@ export default function BottomNav({ activeTab, onSelectTab, onOpenDrawer }) {
     <nav
       className="mobile-bottom-nav hide-on-desktop"
       aria-label="التنقل السريع في الهاتف"
+      dir="rtl"
     >
       <div className="mobile-bottom-nav-inner">
         {navItems.map((item) => {
@@ -107,11 +93,12 @@ export default function BottomNav({ activeTab, onSelectTab, onOpenDrawer }) {
               onClick={item.onClick}
               className={`mobile-nav-btn ${item.isActive ? 'active' : ''}`}
               title={item.label}
+              aria-current={item.isActive ? 'page' : undefined}
             >
               <div className="mobile-nav-icon-wrapper">
                 <Icon
-                  size={item.isActive ? 25 : 23}
-                  strokeWidth={item.isActive ? 2.3 : 1.9}
+                  size={26}
+                  strokeWidth={item.isActive ? 2.5 : 2.2}
                   className={`mobile-nav-icon ${item.isActive ? 'active-icon' : ''}`}
                 />
               </div>

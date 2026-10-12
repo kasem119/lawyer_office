@@ -20,13 +20,13 @@ export default function DashboardCharts({ cases = [], tasks = [], invoices = [],
   const donePct = Math.round((doneTasks / totalTasks) * 100);
 
   // Invoice stats
-  const totalInvoiced = invoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0) || 1;
+  const totalInvoiced = invoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
   const paidInvoices = invoices.filter(i => i.status === 'paid');
   const paidAmount = paidInvoices.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
   const pendingAmount = invoices
     .filter(i => i.status === 'sent' || i.status === 'overdue' || i.status === 'draft')
     .reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
-  const collectionRate = Math.round((paidAmount / totalInvoiced) * 100);
+  const collectionRate = totalInvoiced > 0 ? Math.round((paidAmount / totalInvoiced) * 100) : 0;
 
   const hasData = cases.length > 0 || tasks.length > 0 || invoices.length > 0;
   if (!hasData) {

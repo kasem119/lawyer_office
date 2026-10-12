@@ -9,6 +9,12 @@ function getTenantId(req) {
   return req.user.tenant_id || 1;
 }
 
+function activityScope(alias = 'activity_log') {
+  return `(${alias}.tenant_id = ? OR (${alias}.tenant_id IS NULL AND EXISTS (
+    SELECT 1 FROM users scope_user WHERE scope_user.id = ${alias}.user_id AND scope_user.tenant_id = ?
+  )))`;
+}
+
 // Require authentication and admin privileges for all activity log endpoints
 router.use(authenticateToken);
 router.use(requireAdmin);
@@ -31,8 +37,8 @@ router.get('/', (req, res, next) => {
       search
     } = req.query;
 
-    const whereClauses = ['(a.tenant_id = ? OR a.tenant_id IS NULL)'];
-    const params = [tenantId];
+    const whereClauses = [activityScope('a')];
+    const params = [tenantId, tenantId];
 
     // Filter by user_id
     if (user_id && user_id !== 'all') {
@@ -140,39 +146,39 @@ router.get('/stats', (req, res, next) => {
     const tenantId = getTenantId(req);
 
     // Total count
-    const totalRow = db.prepare('SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL)').get(tenantId);
+    const totalRow = db.prepare(`SELECT COUNT(*) as count FROM activity_log WHERE ${activityScope()}`).get(tenantId, tenantId);
     const total = totalRow ? totalRow.count : 0;
 
     // Today's count
-    const todayRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL) AND DATE(created_at) = DATE('now')").get(tenantId);
+    const todayRow = db.prepare(`SELECT COUNT(*) as count FROM activity_log WHERE ${activityScope()} AND DATE(created_at) = DATE('now')`).get(tenantId, tenantId);
     const today = todayRow ? todayRow.count : 0;
 
     // This week's count (last 7 days)
-    const thisWeekRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL) AND DATE(created_at) >= DATE('now', '-7 days')").get(tenantId);
+    const thisWeekRow = db.prepare(`SELECT COUNT(*) as count FROM activity_log WHERE ${activityScope()} AND DATE(created_at) >= DATE('now', '-7 days')`).get(tenantId, tenantId);
     const thisWeek = thisWeekRow ? thisWeekRow.count : 0;
 
     // This month's count
-    const thisMonthRow = db.prepare("SELECT COUNT(*) as count FROM activity_log WHERE (tenant_id = ? OR tenant_id IS NULL) AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')").get(tenantId);
+    const thisMonthRow = db.prepare(`SELECT COUNT(*) as count FROM activity_log WHERE ${activityScope()} AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`).get(tenantId, tenantId);
     const thisMonth = thisMonthRow ? thisMonthRow.count : 0;
 
     // Breakdown by entity_type
     const byEntityType = db.prepare(`
       SELECT entity_type, COUNT(*) as count
       FROM activity_log
-      WHERE (tenant_id = ? OR tenant_id IS NULL)
+      WHERE ${activityScope()}
       GROUP BY entity_type
       ORDER BY count DESC
-    `).all(tenantId);
+    `).all(tenantId, tenantId);
 
     // Breakdown by action
     const byAction = db.prepare(`
       SELECT action, COUNT(*) as count
       FROM activity_log
-      WHERE (tenant_id = ? OR tenant_id IS NULL)
+      WHERE ${activityScope()}
       GROUP BY action
       ORDER BY count DESC
       LIMIT 10
-    `).all(tenantId);
+    `).all(tenantId, tenantId);
 
     // Most active users
     const topUsers = db.prepare(`
@@ -184,11 +190,11 @@ router.get('/stats', (req, res, next) => {
         COUNT(*) as count
       FROM activity_log a
       LEFT JOIN users u ON a.user_id = u.id
-      WHERE (a.tenant_id = ? OR a.tenant_id IS NULL)
+      WHERE ${activityScope('a')}
       GROUP BY a.user_id
       ORDER BY count DESC
       LIMIT 5
-    `).all(tenantId);
+    `).all(tenantId, tenantId);
 
     res.json({
       success: true,

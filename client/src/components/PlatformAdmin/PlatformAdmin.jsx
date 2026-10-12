@@ -17,7 +17,13 @@ import {
   ShieldAlert,
   ChevronDown,
   Phone,
-  MapPin
+  MapPin,
+  Settings,
+  Save,
+  Plus,
+  UserX,
+  UserCheck,
+  Trash2
 } from 'lucide-react';
 import Button from '../Shared/Button';
 import LoadingSpinner from '../Shared/LoadingSpinner';
@@ -40,14 +46,29 @@ export default function PlatformAdmin() {
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [extendMonths, setExtendMonths] = useState(12);
   const [actionLoading, setActionLoading] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState({
+    defaultRenewalMonths: 12,
+    starterMaxUsers: 3,
+    proMaxUsers: 6,
+    enterpriseMaxUsers: 999
+  });
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [createTenantOpen, setCreateTenantOpen] = useState(false);
+  const [tenantCreating, setTenantCreating] = useState(false);
+  const [tenantForm, setTenantForm] = useState({ name: '', owner_name: '', email: '', password: '', phone: '', city: '' });
+  const [deleteTenant, setDeleteTenant] = useState(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [tenantDeleting, setTenantDeleting] = useState(false);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [statsRes, tenantsRes, paymentsRes] = await Promise.all([
+      const [statsRes, tenantsRes, paymentsRes, settingsRes] = await Promise.all([
         apiFetch('/platform/stats'),
         apiFetch('/platform/tenants'),
-        apiFetch('/platform/payments/pending')
+        apiFetch('/platform/payments/pending'),
+        apiFetch('/platform/settings')
       ]);
 
       if (statsRes.ok) {
@@ -62,10 +83,123 @@ export default function PlatformAdmin() {
         const p = await paymentsRes.json();
         setPendingPayments(p.payments || []);
       }
+      if (settingsRes.ok) {
+        const result = await settingsRes.json();
+        if (result.settings) {
+          setPlatformSettings(result.settings);
+          setExtendMonths(result.settings.defaultRenewalMonths);
+        }
+      }
     } catch (err) {
       console.error('Error loading platform admin data:', err);
     } finally {
+      setSettingsLoading(false);
       setLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async (event) => {
+    event.preventDefault();
+    setSettingsSaving(true);
+    try {
+      const res = await apiFetch('/platform/settings', {
+        method: 'PUT',
+        body: JSON.stringify(platformSettings)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'تعذر حفظ الإعدادات');
+      setPlatformSettings(data.settings);
+      setExtendMonths(data.settings.defaultRenewalMonths);
+      setActionMessage('تم حفظ إعدادات المنصة وتطبيقها على التفعيلات القادمة.');
+    } catch (err) {
+      alert(`خطأ: ${err.message}`);
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleCreateTenant = async (event) => {
+    event.preventDefault();
+    setTenantCreating(true);
+    try {
+      const res = await apiFetch('/platform/tenants', {
+        method: 'POST',
+        body: JSON.stringify(tenantForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'تعذر إنشاء المكتب');
+      setCreateTenantOpen(false);
+      setTenantForm({ name: '', owner_name: '', email: '', password: '', phone: '', city: '' });
+      setActionMessage(data.message);
+      await loadData();
+    } catch (err) {
+      alert(`خطأ: ${err.message}`);
+    } finally {
+      setTenantCreating(false);
+    }
+  };
+
+  const handleToggleTenantAccess = async (tenant) => {
+    const suspended = tenant.is_active === 0 || tenant.status === 'suspended';
+    const nextStatus = suspended ? 'active' : 'suspended';
+    const promptText = suspended
+      ? `إعادة تفعيل دخول مكتب «${tenant.name}»؟`
+      : `إيقاف دخول مكتب «${tenant.name}»؟ ستبقى بيانات المكتب محفوظة ويمكن إعادة تفعيله لاحقاً.`;
+    if (!confirm(promptText)) return;
+    try {
+      const res = await apiFetch(`/platform/tenants/${tenant.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: nextStatus })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'تعذر تحديث حساب المكتب');
+      setActionMessage(data.message);
+      await loadData();
+    } catch (err) {
+      alert(`خطأ: ${err.message}`);
+    }
+  };
+
+  const handleToggleOwnerLogin = async (tenant) => {
+    const active = Number(tenant.owner_login_active) === 1;
+    const nextActive = !active;
+    const promptText = active
+      ? `إزالة دخول مدير مكتب «${tenant.name}»؟ ستبقى سجلات المكتب كاملة، ويمكنك إعادة الدخول لاحقاً.`
+      : `إعادة دخول مدير مكتب «${tenant.name}»؟`;
+    if (!confirm(promptText)) return;
+    try {
+      const res = await apiFetch(`/platform/tenants/${tenant.id}/owner-login`, {
+        method: 'PATCH',
+        body: JSON.stringify({ active: nextActive })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'تعذر تحديث دخول مدير المكتب');
+      setActionMessage(data.message);
+      await loadData();
+    } catch (err) {
+      alert(`خطأ: ${err.message}`);
+    }
+  };
+
+  const handleDeleteTenant = async (event) => {
+    event.preventDefault();
+    if (!deleteTenant || deleteConfirmation.trim() !== deleteTenant.name.trim()) return;
+    setTenantDeleting(true);
+    try {
+      const res = await apiFetch(`/platform/tenants/${deleteTenant.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmation: deleteConfirmation.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'تعذر حذف المكتب');
+      setDeleteTenant(null);
+      setDeleteConfirmation('');
+      setActionMessage(data.message);
+      await loadData();
+    } catch (err) {
+      alert(`خطأ: ${err.message}`);
+    } finally {
+      setTenantDeleting(false);
     }
   };
 
@@ -111,7 +245,7 @@ export default function PlatformAdmin() {
     try {
       const res = await apiFetch(`/platform/payments/${paymentId}/confirm`, {
         method: 'POST',
-        body: JSON.stringify({ durationMonths: 12 })
+        body: JSON.stringify({ durationMonths: platformSettings.defaultRenewalMonths })
       });
       const data = await res.json();
       if (res.ok) {
@@ -149,13 +283,15 @@ export default function PlatformAdmin() {
     const term = searchTerm.toLowerCase();
     const matchSearch = (t.name || '').toLowerCase().includes(term) ||
                         (t.owner_name || '').toLowerCase().includes(term) ||
+                        (t.email || '').toLowerCase().includes(term) ||
                         (t.city || '').toLowerCase().includes(term) ||
                         (t.phone || '').includes(term);
     if (!matchSearch) return false;
     
     if (filterStatus === 'all') return true;
+    if (filterStatus === 'suspended') return t.is_active === 0 || t.status === 'suspended';
     if (filterStatus === 'trial') return t.plan === 'trial';
-    if (filterStatus === 'active') return t.status === 'active' && t.plan !== 'trial';
+    if (filterStatus === 'active') return t.is_active !== 0 && t.status === 'active' && t.plan !== 'trial';
     
     const isExpired = t.subscription_ends_at ? new Date(t.subscription_ends_at) < new Date() : false;
     if (filterStatus === 'expired') return t.status === 'expired' || isExpired;
@@ -182,6 +318,9 @@ export default function PlatformAdmin() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
+          <Button onClick={() => setCreateTenantOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={16} /> إضافة مكتب
+          </Button>
           <Button variant="outline" onClick={loadData} style={{ gap: '8px' }}>
             <Clock size={16} />
             تحديث البيانات
@@ -343,9 +482,12 @@ export default function PlatformAdmin() {
                         gap: '6px'
                       }}>
                         <CreditCard size={14} />
-                        {p.payment_method === 'bank_transfer' ? 'تحويل مصرفي' :
+                        {p.payment_method === 'onepay' ? 'وان باي (OnePay)' :
+                         p.payment_method === 'ly_pay' ? 'LY Pay' :
+                         p.payment_method === 'cash' ? 'نقداً (كاش)' :
+                         p.payment_method === 'bank_transfer' ? 'تحويل مصرفي' :
                          p.payment_method === 'sadad' ? 'خدمة سداد' :
-                         p.payment_method === 'mobicash' ? 'موبي كاش' : 'نقداً'}
+                         p.payment_method === 'mobicash' ? 'موبي كاش' : (p.payment_method || 'غير محدد')}
                       </span>
                     </td>
                     <td style={{ padding: '16px 24px', direction: 'ltr', textAlign: 'right', fontFamily: 'monospace', color: 'var(--text-dim)' }}>
@@ -384,6 +526,54 @@ export default function PlatformAdmin() {
           </div>
         </div>
       )}
+
+      {/* Platform-wide policies */}
+      <form className="glass-card" onSubmit={handleSaveSettings} style={{ padding: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '20px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', color: 'var(--text-main)', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '9px' }}>
+              <Settings size={21} color="var(--primary)" /> إعدادات المنصة والاشتراكات
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '7px 0 0' }}>
+              تحدد القيم الافتراضية للتجديد وحدود حسابات المستخدمين في الخطط. تسري التغييرات على التفعيلات القادمة.
+            </p>
+          </div>
+          <Button type="submit" disabled={settingsSaving || settingsLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <Save size={16} /> {settingsSaving ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+          </Button>
+        </div>
+        {settingsLoading ? (
+          <div style={{ color: 'var(--text-muted)', padding: '12px 0' }}>جاري تحميل إعدادات المنصة...</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
+            <label className="form-group">
+              <span className="form-label" style={{ display: 'block', marginBottom: '8px' }}>مدة التجديد الافتراضية</span>
+              <select className="form-input" value={platformSettings.defaultRenewalMonths} onChange={(e) => setPlatformSettings(s => ({ ...s, defaultRenewalMonths: Number(e.target.value) }))}>
+                {[1, 3, 6, 12, 24].map(months => <option key={months} value={months}>{months} {months === 1 ? 'شهر' : 'أشهر'}</option>)}
+              </select>
+            </label>
+            {[
+              ['starterMaxUsers', 'أقصى مستخدمين في الخطة المبتدئة'],
+              ['proMaxUsers', 'أقصى مستخدمين في الخطة الاحترافية'],
+              ['enterpriseMaxUsers', 'أقصى مستخدمين في الخطة المؤسسية']
+            ].map(([key, label]) => (
+              <label className="form-group" key={key}>
+                <span className="form-label" style={{ display: 'block', marginBottom: '8px' }}>{label}</span>
+                <input
+                  className="form-input"
+                  type="number"
+                  min="1"
+                  max="10000"
+                  step="1"
+                  required
+                  value={platformSettings[key]}
+                  onChange={(e) => setPlatformSettings(s => ({ ...s, [key]: Number(e.target.value) }))}
+                />
+              </label>
+            ))}
+          </div>
+        )}
+      </form>
 
       {/* Main Offices Directory */}
       <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -434,6 +624,7 @@ export default function PlatformAdmin() {
                 onChange={(e) => setFilterStatus(e.target.value)}
               >
                 <option value="all">جميع الحالات</option>
+                <option value="suspended">مكاتب موقوفة</option>
                 <option value="trial">تجريبية فقط</option>
                 <option value="active">مدفوعة نشطة</option>
                 <option value="expired">منتهية الصلاحية</option>
@@ -469,7 +660,8 @@ export default function PlatformAdmin() {
               ) : (
                 filteredTenants.map(t => {
                   const endsAt = new Date(t.subscription_ends_at || t.trial_ends_at);
-                  const isExpired = endsAt < new Date();
+                  const isSuspended = t.is_active === 0 || t.status === 'suspended';
+                  const isExpired = !isSuspended && (t.status === 'expired' || endsAt < new Date());
                   const isTrial = t.plan === 'trial';
                   
                   return (
@@ -482,10 +674,12 @@ export default function PlatformAdmin() {
                           <div>
                             <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                               {t.name}
-                              {t.status === 'active' && !isExpired && <CheckCircle size={14} color="#10b981" />}
+                              {t.status === 'active' && !isExpired && !isSuspended && <CheckCircle size={14} color="#10b981" />}
                             </div>
                             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                              المالك: {t.owner_name} <span style={{ opacity: 0.5 }}>#{t.id}</span>
+                              المدير: {t.owner_name} • {t.users_count || 0} مستخدم
+                              <span style={{ display: 'block', direction: 'ltr', textAlign: 'right', marginTop: '2px' }}>{t.email}</span>
+                              <span style={{ opacity: 0.5 }}>#{t.id}</span>
                             </div>
                           </div>
                         </div>
@@ -511,11 +705,11 @@ export default function PlatformAdmin() {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '6px',
-                          background: isExpired ? 'rgba(239, 68, 68, 0.1)' : isTrial ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                          color: isExpired ? '#ef4444' : isTrial ? '#f59e0b' : '#10b981',
+                          background: isSuspended || isExpired ? 'rgba(239, 68, 68, 0.1)' : isTrial ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                          color: isSuspended || isExpired ? '#ef4444' : isTrial ? '#f59e0b' : '#10b981',
                         }}>
-                          {isExpired ? <XCircle size={14} /> : isTrial ? <Clock size={14} /> : <ShieldCheck size={14} />}
-                          {isExpired ? 'منتهي' : isTrial ? 'تجريبي' : t.plan === 'starter' ? 'مبتدئ' : t.plan === 'pro' ? 'احترافي' : 'مؤسسي'}
+                          {isSuspended || isExpired ? <XCircle size={14} /> : isTrial ? <Clock size={14} /> : <ShieldCheck size={14} />}
+                          {isSuspended ? 'موقوف' : isExpired ? 'منتهي' : isTrial ? 'تجريبي' : t.plan === 'starter' ? 'مبتدئ' : t.plan === 'pro' ? 'احترافي' : 'مؤسسي'}
                         </span>
                       </td>
 
@@ -534,19 +728,32 @@ export default function PlatformAdmin() {
                       </td>
 
                       <td style={{ padding: '16px 24px', textAlign: 'center' }}>
-                        <Button
-                          variant={isExpired ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedTenant(t)}
-                          style={{ 
-                            borderRadius: '8px',
-                            padding: '6px 14px',
-                            height: 'auto',
-                            fontSize: '0.85rem'
-                          }}
-                        >
-                          إدارة الاشتراك
-                        </Button>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                          <Button
+                            variant={isExpired ? "primary" : "outline"}
+                            onClick={() => setSelectedTenant(t)}
+                            style={{ borderRadius: '8px', padding: '6px 12px', height: 'auto', fontSize: '0.85rem' }}
+                          >إدارة الاشتراك</Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleToggleTenantAccess(t)}
+                            style={{ borderRadius: '8px', padding: '6px 12px', height: 'auto', fontSize: '0.85rem', color: isSuspended ? '#10b981' : '#ef4444', borderColor: isSuspended ? 'rgba(16,185,129,.3)' : 'rgba(239,68,68,.3)' }}
+                          >{isSuspended ? 'إعادة التفعيل' : 'إيقاف الدخول'}</Button>
+                          {t.owner_login_user_id && (
+                            <Button
+                              variant="outline"
+                              onClick={() => handleToggleOwnerLogin(t)}
+                              style={{ borderRadius: '8px', padding: '6px 12px', height: 'auto', fontSize: '0.85rem', color: Number(t.owner_login_active) === 1 ? '#b45309' : '#10b981', borderColor: Number(t.owner_login_active) === 1 ? 'rgba(180,83,9,.3)' : 'rgba(16,185,129,.3)' }}
+                            >{Number(t.owner_login_active) === 1 ? <><UserX size={14} /> إزالة دخول المدير</> : <><UserCheck size={14} /> استعادة دخول المدير</>}</Button>
+                          )}
+                          {isSuspended && t.id !== 1 && (
+                            <Button
+                              variant="outline"
+                              onClick={() => { setDeleteTenant(t); setDeleteConfirmation(''); }}
+                              style={{ borderRadius: '8px', padding: '6px 12px', height: 'auto', fontSize: '0.85rem', color: '#dc2626', borderColor: 'rgba(220,38,38,.35)' }}
+                            ><Trash2 size={14} /> حذف المكتب نهائياً</Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -556,6 +763,73 @@ export default function PlatformAdmin() {
           </table>
         </div>
       </div>
+
+      {/* Create office account */}
+      {createTenantOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(11, 17, 32, 0.75)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', zIndex: 1000, padding: '20px' }}>
+          <form onSubmit={handleCreateTenant} className="glass-card" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '24px' }}>
+            <h2 style={{ margin: '0 0 8px', color: 'var(--primary)', fontSize: '1.3rem' }}>إنشاء حساب مكتب جديد</h2>
+            <p style={{ margin: '0 0 20px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>سيُنشأ المكتب بفترة تجريبية 14 يوماً وحساب مدير مكتب يمكنه تسجيل الدخول بالبريد وكلمة المرور أدناه.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+              {[
+                ['name', 'اسم المكتب', 'text', true],
+                ['owner_name', 'اسم مدير المكتب', 'text', true],
+                ['email', 'بريد المدير لتسجيل الدخول', 'email', true],
+                ['password', 'كلمة مرور المدير (8 خانات على الأقل)', 'password', true],
+                ['phone', 'رقم الهاتف', 'tel', false],
+                ['city', 'المدينة', 'text', false]
+              ].map(([key, label, type, required]) => (
+                <label className="form-group" key={key}>
+                  <span className="form-label" style={{ display: 'block', marginBottom: '7px' }}>{label}</span>
+                  <input
+                    className="form-input"
+                    type={type}
+                    required={required}
+                    minLength={key === 'password' ? 8 : undefined}
+                    autoComplete={key === 'password' ? 'new-password' : undefined}
+                    value={tenantForm[key]}
+                    onChange={(e) => setTenantForm(s => ({ ...s, [key]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+              <Button type="button" variant="outline" disabled={tenantCreating} onClick={() => setCreateTenantOpen(false)}>إلغاء</Button>
+              <Button type="submit" disabled={tenantCreating}>{tenantCreating ? 'جاري الإنشاء...' : 'إنشاء حساب المكتب'}</Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Permanent deletion is only available after suspending the office. */}
+      {deleteTenant && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(11, 17, 32, 0.8)', backdropFilter: 'blur(8px)', display: 'grid', placeItems: 'center', zIndex: 1100, padding: '20px' }}>
+          <form onSubmit={handleDeleteTenant} className="glass-card" style={{ width: '100%', maxWidth: '560px', background: 'var(--bg-card)', border: '1px solid rgba(220,38,38,.45)', padding: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,.55)' }}>
+            <h2 style={{ margin: '0 0 10px', color: '#dc2626', fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Trash2 size={22} /> حذف المكتب وبياناته نهائياً
+            </h2>
+            <p style={{ margin: '0 0 10px', color: 'var(--text-main)', lineHeight: 1.8 }}>
+              سيتم حذف حساب المكتب والمستخدمين والقضايا والعملاء والمستندات والاشتراكات وسجلات المكتب. لا يمكن التراجع عن هذا الإجراء.
+            </p>
+            <p style={{ margin: '0 0 14px', color: '#b45309', fontSize: '0.85rem', lineHeight: 1.7 }}>
+              قد تبقى نسخة من البيانات في النسخ الاحتياطية السابقة حتى انتهاء مدة الاحتفاظ بها، وسيبقى سجل إداري مختصر بعملية الحذف.
+            </p>
+            <p style={{ margin: '0 0 14px', color: 'var(--text-muted)' }}>
+              المكتب: <strong style={{ color: 'var(--text-main)' }}>{deleteTenant.name}</strong>
+            </p>
+            <label className="form-group" style={{ display: 'block' }}>
+              <span className="form-label" style={{ display: 'block', marginBottom: '7px' }}>اكتب اسم المكتب للتأكيد</span>
+              <input className="form-input" autoComplete="off" value={deleteConfirmation} onChange={(e) => setDeleteConfirmation(e.target.value)} />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+              <Button type="button" variant="outline" disabled={tenantDeleting} onClick={() => { setDeleteTenant(null); setDeleteConfirmation(''); }}>إلغاء</Button>
+              <Button type="submit" variant="outline" disabled={tenantDeleting || deleteConfirmation.trim() !== deleteTenant.name.trim()} style={{ color: '#dc2626', borderColor: '#dc2626' }}>
+                {tenantDeleting ? 'جاري الحذف...' : 'حذف المكتب وبياناته نهائياً'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Modern Activation Modal */}
       {selectedTenant && (

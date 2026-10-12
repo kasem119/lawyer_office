@@ -102,27 +102,32 @@ export default function CaseList({ onViewCase }) {
   };
 
   const handleToggleStatus = async (caseItem) => {
-    const newStatus = caseItem.status === 'closed' ? 'active' : 'closed';
-    const actionText = newStatus === 'closed' ? 'إغلاق القضية واعتبارها منتهية' : 'إعادة تنشيط القضية وفتحها';
-    if (!window.confirm(`هل أنت متأكد من ${actionText} "${caseItem.title}"؟`)) return;
+    if (caseItem.status !== 'closed') {
+      alert('لإتمام أو أرشفة القضية، يرجى الدخول إلى تفاصيل القضية وتدوين الحكم النهائي.');
+      onViewCase(caseItem.id);
+      return;
+    }
+
+    const msg = 'هل تريد إعادة فتح القضية وجعلها نشطة؟';
+    if (!window.confirm(msg)) return;
 
     try {
       const res = await apiFetch(`/cases/${caseItem.id}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: 'active' })
       });
       if (res.ok) {
         fetchCases();
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'يرجى التأكد من إعادة تشغيل الخادم (Server) لتطبيق التعديلات الجديدة.');
+        const err = await res.json().catch(()=>({}));
+        alert(err.message || 'حدث خطأ');
       }
-    } catch (err) {
-      alert(err.message || 'فشل تغيير حالة القضية');
+    } catch (e) {
+      alert('حدث خطأ');
     }
   };
 
-  const handleDeleteCase = async (caseItem) => {
+const handleDeleteCase = async (caseItem) => {
     if (!window.confirm(`⚠️ تحذير: هل أنت متأكد من حذف القضية "${caseItem.title}" نهائياً؟\nسيتم حذف كافة الجلسات والمهام والمستندات المرتبطة بها!`)) return;
 
     try {
@@ -175,7 +180,7 @@ export default function CaseList({ onViewCase }) {
     {
       header: 'إجراءات وتحكم',
       render: (row) => (
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div className="case-row-actions" style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <button
             onClick={() => onViewCase(row.id)}
             title="عرض ملف وتفاصيل القضية"
@@ -210,6 +215,7 @@ export default function CaseList({ onViewCase }) {
             style={{ padding: '6px 8px', fontSize: '0.8rem' }}
           >
             <Edit size={15} />
+            <span className="mobile-action-label">تعديل</span>
           </button>
 
           {isAdmin && (
@@ -220,6 +226,7 @@ export default function CaseList({ onViewCase }) {
               style={{ padding: '6px 8px', fontSize: '0.8rem' }}
             >
               <Trash2 size={15} />
+              <span className="mobile-action-label">حذف</span>
             </button>
           )}
         </div>
@@ -234,7 +241,7 @@ export default function CaseList({ onViewCase }) {
           <h1 style={{ fontSize: '1.4rem', fontWeight: '800', color: 'var(--primary)' }}>سجل القضايا والملفات</h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>إدارة متابعة وتداول قضايا المكتب والتحكم في الحالات</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div className="case-page-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <Button icon={FileText} onClick={() => handleExport('pdf')} variant="secondary" disabled={exporting}>
             {exporting ? '...' : 'PDF'}
           </Button>

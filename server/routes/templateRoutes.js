@@ -5,6 +5,14 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 router.use(authenticateToken);
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>\"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+}[character]));
+
 function getTenantId(req) {
   return req.user.tenant_id || 1;
 }
@@ -197,8 +205,9 @@ router.put('/:id', (req, res, next) => {
       return res.status(404).json({ success: false, message: 'القالب غير موجود' });
     }
 
-    // Only allow editing if created by this tenant (or super_admin)
-    if (existing.tenant_id && existing.tenant_id !== tenantId && req.user.role !== 'super_admin') {
+    // Shared system templates are readable by all offices, but are not owned
+    // by any office and must never be mutated through an office endpoint.
+    if (Number(existing.tenant_id) !== Number(tenantId)) {
       return res.status(403).json({ success: false, message: 'غير مصرح لك بتعديل هذا القالب' });
     }
 
@@ -259,7 +268,7 @@ router.delete('/:id', (req, res, next) => {
       return res.status(404).json({ success: false, message: 'القالب غير موجود' });
     }
 
-    if (existing.tenant_id && existing.tenant_id !== tenantId && req.user.role !== 'super_admin') {
+    if (Number(existing.tenant_id) !== Number(tenantId)) {
       return res.status(403).json({ success: false, message: 'غير مصرح لك بحذف هذا القالب' });
     }
 
@@ -297,7 +306,7 @@ router.post('/:id/generate', (req, res, next) => {
     generatedHtml = generatedHtml.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (fullMatch, key) => {
       const trimmedKey = key.trim();
       if (values[trimmedKey] !== undefined && values[trimmedKey] !== null && String(values[trimmedKey]).trim() !== '') {
-        return String(values[trimmedKey]);
+        return escapeHtml(values[trimmedKey]);
       }
       return fullMatch;
     });

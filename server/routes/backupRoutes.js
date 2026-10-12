@@ -6,10 +6,19 @@ import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/permissions.js';
 import { runBackup, restoreBackup } from '../services/backupService.js';
 import { BACKUPS_DIR } from '../config.js';
+import db from '../database/db.js';
 
 const router = express.Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
+// These backups contain the entire server database, not one tenant's records.
+// Keep the single-office workflow; multi-office snapshots are server operations.
+router.use((req, res, next) => {
+  if (db.prepare('SELECT COUNT(*) AS count FROM tenants').get().count > 1) {
+    return res.status(403).json({ message: 'النسخ الاحتياطية الشاملة في بيئة متعددة المكاتب تتم على مستوى الخادم فقط' });
+  }
+  next();
+});
 
 const upload = multer({
   dest: BACKUPS_DIR,

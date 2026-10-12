@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { canAccessCase } from '../middleware/permissions.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -47,6 +48,7 @@ router.post('/', (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     const { case_id, description, amount, category, date } = req.body;
+    if (case_id != null && !canAccessCase(req.user, case_id)) return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
     
     const stmt = db.prepare(`
       INSERT INTO expenses (case_id, description, amount, category, date, created_by, tenant_id)
@@ -76,6 +78,8 @@ router.put('/:id', (req, res, next) => {
     if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && expense.created_by !== req.user.id) {
       return res.status(403).json({ success: false, message: 'غير مصرح لك' });
     }
+
+    if (case_id != null && !canAccessCase(req.user, case_id)) return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
     
     const stmt = db.prepare(`
       UPDATE expenses SET case_id = ?, description = ?, amount = ?, category = ?, date = ?

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dgram from 'dgram';
@@ -8,9 +8,85 @@ const __dirname = path.dirname(__filename);
 
 const DISCOVERY_PORT = 41234;
 const DISCOVERY_QUERY = 'DISCOVER_LAWYER_SERVER';
+app.setAppUserModelId('com.lawyeroffice.desktop');
+
+let mainWindow = null;
+let tray = null;
+
+// ─── Tray helpers ──────────────────────────────────────────────────────────────
+function createTray() {
+  const iconPath = path.join(__dirname, '../dist/icons/icon-192.png');
+  let trayIcon;
+  try {
+    trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+  } catch {
+    trayIcon = nativeImage.createEmpty();
+  }
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip('منظومة إدارة مكتب المحاماة');
+
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'فتح التطبيق',
+      click: () => {
+        if (mainWindow) {
+          if (mainWindow.isMinimized()) mainWindow.restore();
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    },
+    { type: 'separator' },
+    { label: 'إنهاء البرنامج', click: () => app.quit() }
+  ]);
+  tray.setContextMenu(menu);
+
+  // Single-click on tray icon restores the window
+  tray.on('click', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
+// ─── Show notification IPC ─────────────────────────────────────────────────────
+// Works even when the window is hidden/minimized because Notification is a
+// system-level API that does NOT require a visible BrowserWindow.
+ipcMain.handle('show-notification', (event, payload) => {
+  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return { success: false };
+  let senderUrl;
+  try { senderUrl = new URL(event.senderFrame.url); } catch { return { success: false }; }
+  const trustedSender = senderUrl.protocol === 'file:' ||
+    (!app.isPackaged && senderUrl.origin === 'http://localhost:5173');
+  if (!trustedSender) return { success: false };
+  const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!senderWindow || senderWindow.isDestroyed()) return { success: false };
+  if (!Notification.isSupported()) return { success: false };
+  if (typeof payload?.title !== 'string' || typeof payload?.body !== 'string') return { success: false };
+
+  const notification = new Notification({
+    title: payload.title.slice(0, 150),
+    body: payload.body.slice(0, 500),
+    icon: path.join(__dirname, '../dist/icons/icon-192.png')
+  });
+
+  notification.on('click', () => {
+    if (!senderWindow.isDestroyed()) {
+      if (senderWindow.isMinimized()) senderWindow.restore();
+      senderWindow.show();
+      senderWindow.focus();
+    }
+  });
+
+  notification.show();
+  return { success: true };
+});
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1300,
     height: 850,
     minWidth: 1024,
@@ -26,14 +102,23 @@ function createWindow() {
     }
   });
 
-  win.once('ready-to-show', () => {
-    win.show();
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
+
+  // Minimize to tray instead of closing, so background push notifications keep working
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      if (tray) tray.setToolTip('التطبيق يعمل في الخلفية – انقر لفتحه');
+    }
   });
 
   // Enable F12 to inspect DevTools
-  win.webContents.on('before-input-event', (event, input) => {
+  mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12') {
-      win.webContents.toggleDevTools();
+      mainWindow.webContents.toggleDevTools();
       event.preventDefault();
     }
   });
@@ -42,11 +127,11 @@ function createWindow() {
   const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
 
   if (isDev) {
-    win.loadURL('http://localhost:5173').catch(() => {
-      win.loadFile(distHtml);
+    mainWindow.loadURL('http://localhost:5173').catch(() => {
+      mainWindow.loadFile(distHtml);
     });
   } else {
-    win.loadFile(distHtml);
+    mainWindow.loadFile(distHtml);
   }
 }
 
@@ -138,9 +223,14 @@ ipcMain.handle('discover-server', async (event, timeoutMs = 3500) => {
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', () => {
+  app.isQuitting = true;
 });
 
 app.on('window-all-closed', () => {

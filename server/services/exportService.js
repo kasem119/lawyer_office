@@ -1,5 +1,8 @@
 import ExcelJS from 'exceljs';
 import puppeteer from 'puppeteer';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 /**
  * Generate Excel buffer from data
@@ -56,16 +59,53 @@ export const generateExcel = async (columns, data, sheetName = 'Sheet 1') => {
  * @returns {Promise<Buffer>}
  */
 export const generatePDF = async (htmlContent, options = {}) => {
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
-  });
-
+  // Services with ProtectHome cannot write Chrome's crash/config directories.
+  // Give each render a private, writable home without weakening its sandbox.
+  const runtimeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'lawyer-pdf-'));
+  let browser;
   try {
+    browser = await puppeteer.launch({
+      headless: true,
+      env: {
+        ...process.env,
+        ...(process.platform === 'linux' ? {
+          HOME: runtimeDir,
+          XDG_CONFIG_HOME: runtimeDir,
+          XDG_CACHE_HOME: runtimeDir
+        } : {})
+      },
+      args: [
+        '--disable-dev-shm-usage',
+        '--disable-crash-reporter'
+      ]
+    });
+
     const page = await browser.newPage();
-    
-    // Set content and wait for fonts/images to load
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      let protocol;
+      try {
+        protocol = new URL(request.url()).protocol;
+      } catch {
+        protocol = '';
+      }
+
+      if (protocol === 'data:') {
+        request.continue().catch(() => {});
+      } else {
+        request.abort('blockedbyclient').catch(() => {});
+      }
+    });
+
+    // PDF output is self-contained: deny network and executable content so
+    // record fields cannot make Chromium reach server-local destinations.
+    const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline' data:; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'">`;
+    const html = String(htmlContent ?? '');
+    const secureHtml = /<head\b[^>]*>/i.test(html)
+      ? html.replace(/<head\b([^>]*)>/i, `<head$1>${csp}`)
+      : `<!doctype html><html><head>${csp}</head><body>${html}</body></html>`;
+    await page.setContent(secureHtml, { waitUntil: 'networkidle0' });
 
     // Emulate screen for CSS media print
     await page.emulateMediaType('print');
@@ -100,8 +140,13 @@ export const generatePDF = async (htmlContent, options = {}) => {
       }
     });
 
-    return pdfBuffer;
+    // Puppeteer returns Uint8Array; Express otherwise serializes it as JSON.
+    return Buffer.from(pdfBuffer);
   } finally {
-    await browser.close();
+    try {
+      await browser?.close();
+    } finally {
+      await fs.rm(runtimeDir, { recursive: true, force: true });
+    }
   }
 };

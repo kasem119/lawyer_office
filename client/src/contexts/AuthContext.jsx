@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiFetch } from '../api/client';
+import { disableDeviceNotifications } from '../utils/deviceNotifications';
 
 const AuthContext = createContext();
 
@@ -67,6 +68,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    try { await disableDeviceNotifications(); } catch (err) { console.warn('Notification cleanup:', err.message); }
     try {
       await apiFetch('/auth/logout', { method: 'POST' });
     } catch(e) {}

@@ -1,8 +1,7 @@
 const sanitize = (val) => (typeof val === 'string' ? val.trim() : val);
 
 export const validateLogin = (req, res, next) => {
-    if (req.body.email) req.body.email = sanitize(req.body.email);
-    if (req.body.password) req.body.password = sanitize(req.body.password);
+    if (req.body.email) req.body.email = sanitize(req.body.email).toLowerCase();
     
     const { email, password } = req.body;
     if (!email || !password) {

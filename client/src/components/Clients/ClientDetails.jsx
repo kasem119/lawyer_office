@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Briefcase, Phone, Mail, MapPin, Shield, Edit, Trash2, Plus, Printer } from 'lucide-react';
+import { ArrowRight, Briefcase, Phone, Mail, MapPin, Shield, Edit, Trash2, Plus, Printer, Send } from 'lucide-react';
 import Button from '../Shared/Button';
 import CaseStatusBadge from '../Cases/CaseStatusBadge';
 import Modal from '../Shared/Modal';
 import ClientForm from './ClientForm';
 import CaseForm from '../Cases/CaseForm';
 import { useAuth } from '../../contexts/AuthContext';
-import { apiFetch } from '../../api/client';
+import { apiFetch, getServerUrl } from '../../api/client';
+import { getPortalUrl } from '../../utils/portalUrl';
+import { getWhatsAppUrl } from '../../utils/whatsappUrl';
 
 export default function ClientDetails({ clientId, onBack, onViewCase }) {
   const { isAdmin } = useAuth();
@@ -39,6 +41,29 @@ export default function ClientDetails({ clientId, onBack, onViewCase }) {
   }
 
   const { client, cases } = data;
+
+  const handleSharePortal = () => {
+    if (!client.phone) {
+      alert('لا يوجد رقم هاتف مسجل للموكل.');
+      return;
+    }
+    let currentDomain;
+    try {
+      currentDomain = getPortalUrl(getServerUrl(), import.meta.env.VITE_PUBLIC_PORTAL_URL);
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+    const message = `أهلاً بك أ. ${client.name}\n\nيمكنك الآن متابعة جميع تفاصيل قضاياك، الجلسات، والفواتير عبر بوابة الموكل الإلكترونية الخاصة بنا:\n${currentDomain}\n\nيرجى الدخول باستخدام رقم هاتفك المسجل لدينا.\n\nمع تحياتنا.`;
+    let whatsappUrl;
+    try {
+      whatsappUrl = getWhatsAppUrl(client.phone, message);
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const handleEditSave = async (formData) => {
     const res = await apiFetch(`/clients/${clientId}`, {
@@ -120,6 +145,9 @@ export default function ClientDetails({ clientId, onBack, onViewCase }) {
         </button>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <Button icon={Send} variant="secondary" onClick={handleSharePortal} style={{ backgroundColor: '#25D366', color: 'white', borderColor: '#25D366' }}>
+            مشاركة البوابة
+          </Button>
           <Button icon={Plus} onClick={() => setIsAddCaseModalOpen(true)}>فتح قضية جديدة للعميل</Button>
           <Button icon={Edit} variant="secondary" onClick={() => setIsEditModalOpen(true)}>تعديل بيانات العميل</Button>
           <Button icon={Printer} variant="secondary" onClick={handlePrint} title="طباعة كشف العميل">طباعة</Button>

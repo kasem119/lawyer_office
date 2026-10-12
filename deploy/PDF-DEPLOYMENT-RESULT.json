@@ -1,0 +1,21 @@
+{
+  "deployed_at_utc": "20261011T174512Z",
+  "backup": "/opt/lawyer_office/deployment-backups/pdf-20261011T174512Z",
+  "files": {
+    "services/exportService.js": "6f6e122909876413af7cf0cd0dc5fbfc52d8498e7aaa43503d986cf71f8f1447",
+    "templates/pdfTemplates.js": "dfc943cf3a3257e2424139449b914499423e040b1a5511d82666c65218b0930e"
+  },
+  "health": {
+    "local": "ok",
+    "public": "ok"
+  },
+  "unauthenticated_exports": {
+    "/api/exports/events?format=pdf": 401,
+    "/api/exports/cases/1?format=pdf": 401
+  },
+  "pdf_checks": [
+    "PASS events: real PDF rendering and HTTP binary download (108156 bytes)",
+    "PASS case: real PDF rendering and HTTP binary download (39941 bytes)"
+  ],
+  "status": "success"
+}

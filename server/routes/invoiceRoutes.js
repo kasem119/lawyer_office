@@ -3,13 +3,47 @@ import db from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { sendInvoiceEmail } from '../services/emailService.js';
 import { logActivity } from '../services/auditService.js';
-import { canAccessInvoice } from '../middleware/permissions.js';
+import { canAccessInvoice, canAccessCase } from '../middleware/permissions.js';
 
 const router = express.Router();
 router.use(authenticateToken);
 
 function getTenantId(req) {
   return req.user.tenant_id || 1;
+}
+
+const invoiceStatuses = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
+
+function validateInvoiceInput(req, res) {
+  const { items, status } = req.body;
+  if (status !== undefined && !invoiceStatuses.includes(status)) {
+    res.status(400).json({ message: 'حالة الفاتورة غير صالحة' });
+    return false;
+  }
+  if (items !== undefined && (!Array.isArray(items) || items.some(item =>
+    !item || typeof item.description !== 'string' || !item.description.trim() ||
+    typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity <= 0 ||
+    typeof item.unit_price !== 'number' || !Number.isFinite(item.unit_price) || item.unit_price < 0 ||
+    !Number.isFinite(item.quantity * item.unit_price)
+  ) || !Number.isFinite(items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)))) {
+    res.status(400).json({ message: 'بنود الفاتورة يجب أن تحتوي وصفًا وكمية موجبة وسعرًا صالحًا' });
+    return false;
+  }
+  return true;
+}
+
+function validateInvoiceLinks(req, res, caseId, clientId) {
+  if (!canAccessCase(req.user, caseId)) {
+    res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
+    return false;
+  }
+  const caseItem = db.prepare('SELECT client_id FROM cases WHERE id = ? AND tenant_id = ?').get(caseId, getTenantId(req));
+  const client = db.prepare('SELECT id FROM clients WHERE id = ? AND tenant_id = ?').get(clientId, getTenantId(req));
+  if (!client || Number(caseItem.client_id) !== Number(clientId)) {
+    res.status(400).json({ message: 'الموكل يجب أن ينتمي إلى المكتب وأن يكون مرتبطًا بالقضية المحددة' });
+    return false;
+  }
+  return true;
 }
 
 // GET /api/invoices
@@ -84,40 +118,39 @@ router.post('/', (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     const { case_id, client_id, due_date, notes, items } = req.body;
+    if (!validateInvoiceLinks(req, res, case_id, client_id)) return;
+    if (!validateInvoiceInput(req, res)) return;
     
-    // Auto-generate invoice_number within this tenant
-    const year = new Date().getFullYear();
-    const countStmt = db.prepare('SELECT COUNT(*) as count FROM invoices WHERE invoice_number LIKE ? AND tenant_id = ?');
-    const { count } = countStmt.get(`INV-${year}-%`, tenantId);
-    const nnn = String(count + 1).padStart(3, '0');
-    const invoice_number = `INV-${year}-${nnn}`;
-    
-    let total_amount = 0;
-    if (items && Array.isArray(items)) {
-      items.forEach(item => {
-        total_amount += (item.quantity * item.unit_price);
-      });
-    }
-    
-    const insertInvoice = db.prepare(`
-      INSERT INTO invoices (invoice_number, case_id, client_id, total_amount, status, due_date, notes, created_by, tenant_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
-    const info = insertInvoice.run(invoice_number, case_id, client_id, total_amount, 'draft', due_date, notes || '', req.user.id, tenantId);
-    const invoice_id = info.lastInsertRowid;
-    
-    if (items && Array.isArray(items)) {
-      const insertItem = db.prepare(`
-        INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
-        VALUES (?, ?, ?, ?, ?)
+    // The existing schema makes invoice numbers globally unique. Reserve the next
+    // suffix and write all items in one transaction, including after deletion.
+    const invoice_id = db.transaction(() => {
+      const prefix = `INV-${new Date().getFullYear()}-`;
+      const numbers = db.prepare('SELECT invoice_number FROM invoices WHERE invoice_number LIKE ?').all(`${prefix}%`);
+      const last = numbers.reduce((max, row) => {
+        const suffix = row.invoice_number.slice(prefix.length);
+        return /^\d+$/.test(suffix) ? Math.max(max, Number(suffix)) : max;
+      }, 0);
+      const invoice_number = `${prefix}${String(last + 1).padStart(3, '0')}`;
+      const total_amount = (items || []).reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+      const insertInvoice = db.prepare(`
+        INSERT INTO invoices (invoice_number, case_id, client_id, total_amount, status, due_date, notes, created_by, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
-      
-      items.forEach(item => {
-        const item_total = item.quantity * item.unit_price;
-        insertItem.run(invoice_id, item.description, item.quantity, item.unit_price, item_total);
-      });
-    }
+
+      const info = insertInvoice.run(invoice_number, case_id, client_id, total_amount, 'draft', due_date, notes || '', req.user.id, tenantId);
+      const invoice_id = info.lastInsertRowid;
+
+      if (items) {
+        const insertItem = db.prepare(`
+          INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
+          VALUES (?, ?, ?, ?, ?)
+        `);
+        for (const item of items) {
+          insertItem.run(invoice_id, item.description, item.quantity, item.unit_price, item.quantity * item.unit_price);
+        }
+      }
+      return invoice_id;
+    })();
     
     res.json({ success: true, message: 'تم إنشاء الفاتورة بنجاح', data: { id: invoice_id } });
   } catch (err) {
@@ -131,6 +164,13 @@ router.put('/:id/status', (req, res, next) => {
     const tenantId = getTenantId(req);
     const { status } = req.body;
     const invoice_id = req.params.id;
+
+    const existing = db.prepare('SELECT * FROM invoices WHERE id = ? AND tenant_id = ?').get(invoice_id, tenantId);
+    if (!existing) return res.status(404).json({ message: 'الفاتورة غير موجودة' });
+    if (!canAccessInvoice(req.user, existing)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية تغيير حالة هذه الفاتورة' });
+    }
+    if (!invoiceStatuses.includes(status)) return res.status(400).json({ message: 'حالة الفاتورة غير صالحة' });
     
     let paid_date = null;
     if (status === 'paid') {
@@ -167,9 +207,12 @@ router.put('/:id', (req, res, next) => {
       return res.status(403).json({ success: false, message: 'غير مصرح لك بتعديل هذه الفاتورة' });
     }
 
+    if (!validateInvoiceLinks(req, res, case_id ?? existing.case_id, client_id ?? existing.client_id)) return;
+    if (!validateInvoiceInput(req, res)) return;
+
     let total_amount = existing.total_amount;
     if (items && Array.isArray(items)) {
-      total_amount = items.reduce((sum, it) => sum + (Number(it.quantity || 1) * Number(it.unit_price || 0)), 0);
+      total_amount = items.reduce((sum, it) => sum + it.quantity * it.unit_price, 0);
     }
 
     // Execute within transaction
@@ -181,9 +224,10 @@ router.put('/:id', (req, res, next) => {
             total_amount = ?,
             due_date = COALESCE(?, due_date),
             notes = COALESCE(?, notes),
-            status = COALESCE(?, status)
+            status = COALESCE(?, status),
+            paid_date = CASE WHEN ? IS NULL THEN paid_date WHEN ? = 'paid' THEN COALESCE(paid_date, date('now')) ELSE NULL END
         WHERE id = ? AND tenant_id = ?
-      `).run(case_id, client_id, total_amount, due_date, notes, status, invoice_id, tenantId);
+      `).run(case_id, client_id, total_amount, due_date, notes, status, status, status, invoice_id, tenantId);
 
       if (items && Array.isArray(items)) {
         db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);
@@ -192,8 +236,8 @@ router.put('/:id', (req, res, next) => {
           VALUES (?, ?, ?, ?, ?)
         `);
         for (const it of items) {
-          const itemTotal = Number(it.quantity || 1) * Number(it.unit_price || 0);
-          insertItem.run(invoice_id, it.description, it.quantity || 1, it.unit_price, itemTotal);
+          const itemTotal = it.quantity * it.unit_price;
+          insertItem.run(invoice_id, it.description, it.quantity, it.unit_price, itemTotal);
         }
       }
     });
@@ -246,6 +290,9 @@ router.post('/:id/send-email', async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'الفاتورة غير موجودة' });
     }
 
+    if (!canAccessInvoice(req.user, invoice)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية إرسال هذه الفاتورة' });
+    }
     const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
 
     const client = {

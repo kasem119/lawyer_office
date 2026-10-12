@@ -15,6 +15,11 @@
     "setup:firewall": "powershell -ExecutionPolicy Bypass -File server/scripts/setup-firewall.ps1",
     "install:all": "cd server && npm install && cd ../client && npm install",
     "service:install": "cd server && npm run service:install",
-    "service:uninstall": "cd server && npm run service:uninstall"
+    "service:uninstall": "cd server && npm run service:uninstall",
+    "deploy": "python deploy/deploy.py --mode all",
+    "deploy:frontend": "python deploy/deploy.py --mode frontend",
+    "deploy:backend": "python deploy/deploy.py --mode backend",
+    "deploy:status": "python deploy/deploy.py --mode status",
+    "deploy:logs": "python deploy/deploy.py --mode logs"
   }
 }

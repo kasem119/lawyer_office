@@ -57,6 +57,17 @@ export function canChangeTaskStatus(user, task) {
   return task.case_id ? canAccessCase(user, task.case_id) : false;
 }
 
+export function canAccessEvent(user, event) {
+  if (!event || !user || Number(event.tenant_id) !== Number(user.tenant_id || 1)) return false;
+  if (user.role === 'admin' || event.user_id === user.id) return true;
+  return event.case_id ? canAccessCase(user, event.case_id) : false;
+}
+
+export function isOfficeStaff(user, userId) {
+  return Boolean(db.prepare(`SELECT id FROM users WHERE id = ? AND tenant_id = ?
+    AND is_active = 1 AND role IN ('admin', 'lawyer')`).get(userId, user.tenant_id || 1));
+}
+
 export function requireAdmin(req, res, next) {
   if (req.user && req.user.role === 'admin') {
     return next();

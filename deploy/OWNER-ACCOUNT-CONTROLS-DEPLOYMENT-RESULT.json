@@ -1,0 +1,15 @@
+{
+  "status": "deployed",
+  "backup": "/opt/lawyer_office/deployment-backups/owner-controls-20261010-231643",
+  "files_verified": 52,
+  "health": "ok",
+  "service": "active",
+  "verified_at_utc": "20261010-231643",
+  "host": "102.203.202.104",
+  "backend_files": [
+    "server/routes/platformAdminRoutes.js",
+    "server/services/websocketService.js"
+  ],
+  "frontend_files": 50,
+  "index_sha256": "730c1228e6ea16adb07d83edae83ff5994aa57f38495cff36c431404cf43a2e8"
+}

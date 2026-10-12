@@ -34,3 +34,8 @@ builder-debug.yml
 *.log
 .DS_Store
 Thumbs.db
+
+# Local diagnostics and generated Python bytecode
+/artifacts/
+__pycache__/
+*.py[cod]

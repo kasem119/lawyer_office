@@ -404,8 +404,8 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
           gap: '10px'
         }}
       >
-        {/* Server connection pill */}
-        <div
+        {/* Server connection settings are only shown in local and desktop installs. */}
+        {onChangeServer && <div
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -443,7 +443,7 @@ export default function Sidebar({ activeTab, setActiveTab, collapsed = false, se
               تغيير
             </button>
           )}
-        </div>
+        </div>}
 
         {/* Theme toggle & Logout row */}
         <div style={{ display: 'flex', gap: '8px' }}>

@@ -21,6 +21,11 @@ export function authenticateToken(req, res, next) {
       return res.status(403).json({ message: 'انتهت صلاحية الجلسة، يرجى إعادة تسجيل الدخول', code: 'TOKEN_EXPIRED' });
     }
 
+    // Client IDs and staff IDs belong to different tables, even when numbers match.
+    if (!['admin', 'lawyer', 'super_admin'].includes(user.role)) {
+      return res.status(403).json({ message: 'جلسة الدخول غير صالحة لحساب موظف' });
+    }
+
     // Verify user is active in DB
     const dbUser = db.prepare('SELECT id, name, email, role, phone, is_active, tenant_id FROM users WHERE id = ?').get(user.id);
     if (!dbUser || dbUser.is_active !== 1) {
@@ -34,6 +39,10 @@ export function authenticateToken(req, res, next) {
       req.tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(dbUser.tenant_id || 1) || null;
     } catch {
       req.tenant = null;
+    }
+
+    if (dbUser.role !== 'super_admin' && req.tenant && (req.tenant.is_active === 0 || req.tenant.status === 'suspended')) {
+      return res.status(403).json({ message: 'تم إيقاف حساب المكتب. يرجى التواصل مع مالك المنصة.' });
     }
 
     next();

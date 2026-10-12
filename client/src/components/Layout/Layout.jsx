@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import useMediaQuery from '../../hooks/useMediaQuery';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import BottomNav from './BottomNav';
@@ -12,6 +13,34 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
   });
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const drawerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isMobile) setMobileMenuOpen(false);
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen || !isMobile) return;
+    const previousFocus = document.activeElement;
+    const focusable = () => [...drawerRef.current.querySelectorAll('button, a, input, select, [tabindex="0"]')]
+      .filter((element) => !element.disabled && element.getClientRects().length);
+    focusable()[0]?.focus();
+    const handleKey = (event) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+      if (event.key !== 'Tab') return;
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      previousFocus?.focus();
+    };
+  }, [mobileMenuOpen, isMobile]);
 
   const setCollapsed = (val) => {
     setCollapsedState(val);
@@ -25,6 +54,7 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
 
   return (
     <div
+      className="app-layout"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -56,14 +86,14 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
         )}
 
         {/* Sidebar / Mobile Drawer */}
-        <div className={`sidebar-container ${mobileMenuOpen ? 'mobile-open' : ''}`}>
+        <div ref={drawerRef} id="mobile-navigation" role={isMobile && mobileMenuOpen ? 'dialog' : undefined} aria-modal={isMobile && mobileMenuOpen ? true : undefined} aria-label="القائمة الرئيسية" className={`sidebar-container ${mobileMenuOpen ? 'mobile-open' : ''}`}>
           <Sidebar
             activeTab={activeTab}
             setActiveTab={(tab) => {
               setActiveTab(tab);
               setMobileMenuOpen(false);
             }}
-            collapsed={collapsed}
+            collapsed={isMobile ? false : collapsed}
             setCollapsed={setCollapsed}
             onClose={() => setMobileMenuOpen(false)}
             onChangeServer={onChangeServer}
@@ -76,11 +106,12 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
             onChangeServer={onChangeServer}
             onToggleMobileSidebar={() => setMobileMenuOpen(prev => !prev)}
             onNavigate={onNavigate}
+            mobileMenuOpen={mobileMenuOpen}
           />
 
           <main
             key={activeTab}
-            className="animate-fadeIn"
+            className="app-main animate-fadeIn"
             style={{
               flex: 1,
               overflowY: 'auto',
@@ -95,6 +126,7 @@ export default function Layout({ activeTab, setActiveTab, onChangeServer, onNavi
 
       {/* Mobile Bottom Navigation Bar */}
       <BottomNav
+        drawerOpen={mobileMenuOpen}
         activeTab={activeTab}
         onSelectTab={(tab) => {
           setActiveTab(tab);

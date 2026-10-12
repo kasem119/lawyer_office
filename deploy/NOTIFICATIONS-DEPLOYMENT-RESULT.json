@@ -1,0 +1,33 @@
+{
+  "status": "deployed",
+  "target": "https://muhami.ly",
+  "stamp": "20261010-231416",
+  "snapshot": {
+    "backup": "/opt/lawyer_office/deployment-backups/release-20261010-231416",
+    "database": "/opt/lawyer_office/server/database/lawyer_office.db",
+    "counts": {
+      "users": 13,
+      "tenants": 9,
+      "clients": 5,
+      "cases": 5,
+      "notifications": 10
+    }
+  },
+  "backend": "published",
+  "frontend": "published",
+  "files": {
+    "files_verified": 6
+  },
+  "service": "active",
+  "local_health": "ok",
+  "public_files_verified": 2,
+  "https_health": "ok",
+  "push": {
+    "authenticated_push_route": 200,
+    "public_key_length": 87,
+    "subscriptions": 0
+  },
+  "data_counts_preserved": true,
+  "push_subject": "configured",
+  "final_https_health": "ok"
+}

@@ -16,6 +16,14 @@ import {
 import Button from '../Shared/Button';
 import { apiFetch } from '../../api/client';
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>\"']/g, (character) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+}[character]));
+
 const PLACEHOLDER_LABELS = {
   client_name: 'اسم العميل / الموكل',
   client_id_number: 'الرقم الوطني / السجل التجاري',
@@ -148,7 +156,7 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
         client_name: client.name || prev.client_name || '',
         client_phone: client.phone || prev.client_phone || '',
         client_address: client.address || prev.client_address || '',
-        client_id_number: client.national_id_encrypted || client.national_id || prev.client_id_number || ''
+        client_id_number: client.national_id || ''
       }));
     }
   };
@@ -186,9 +194,9 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
       const trimmedKey = key.trim();
       const val = values[trimmedKey];
       if (val !== undefined && val !== null && String(val).trim() !== '') {
-        return `<span style="color: #0f172a; font-weight: 600;">${val}</span>`;
+        return `<span style="color: #0f172a; font-weight: 600;">${escapeHtml(val)}</span>`;
       }
-      return `<span style="background-color: #fef3c7; color: #b45309; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">[${PLACEHOLDER_LABELS[trimmedKey] || trimmedKey}]</span>`;
+      return `<span style="background-color: #fef3c7; color: #b45309; padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">[${escapeHtml(PLACEHOLDER_LABELS[trimmedKey] || trimmedKey)}]</span>`;
     });
     return html;
   };
@@ -201,7 +209,7 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
       const trimmedKey = key.trim();
       const val = values[trimmedKey];
       if (val !== undefined && val !== null && String(val).trim() !== '') {
-        return String(val);
+        return escapeHtml(val);
       }
       return `.................`;
     });
@@ -210,16 +218,28 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
 
   // Print Document Action
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
     const cleanHtml = getCleanPrintHtml();
-
-    printWindow.document.write(`
+    const printFrame = document.createElement('iframe');
+    printFrame.title = 'نسخة الطباعة المعزولة';
+    // Same-origin access is required for the parent to invoke print(); scripts stay disabled.
+    printFrame.setAttribute('sandbox', 'allow-modals allow-same-origin');
+    printFrame.style.position = 'fixed';
+    printFrame.style.width = '1px';
+    printFrame.style.height = '1px';
+    printFrame.style.left = '-10000px';
+    printFrame.style.top = '0';
+    printFrame.onload = () => {
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+      window.setTimeout(() => printFrame.remove(), 30000);
+    };
+    printFrame.srcdoc = `
       <!DOCTYPE html>
       <html dir="rtl" lang="ar">
       <head>
         <meta charset="utf-8">
-        <title>${currentTemplate?.name || 'مستند قانوني'}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; font-src data:; style-src 'unsafe-inline' data:; script-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+        <title>${escapeHtml(currentTemplate?.name || 'مستند قانوني')}</title>
         <style>
           @page {
             size: A4;
@@ -227,7 +247,7 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
           }
           * {
             box-sizing: border-box;
-            font-family: 'Cairo', system-ui, -apple-system, sans-serif;
+            font-family: system-ui, -apple-system, sans-serif;
           }
           body {
             background-color: #ffffff;
@@ -305,7 +325,7 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
             <p>شؤون المحاماة والترافع أمام جميع الهيئات القضائية</p>
           </div>
           <div style="text-align: left; font-size: 10pt; color: #475569;">
-            <p><strong>التاريخ:</strong> ${values.date || new Date().toLocaleDateString('ar-LY')}</p>
+            <p><strong>التاريخ:</strong> ${escapeHtml(values.date || new Date().toLocaleDateString('ar-LY'))}</p>
             <p><strong>الرقم المرجعي:</strong> DOC-${Date.now().toString().slice(-6)}</p>
           </div>
         </div>
@@ -318,29 +338,26 @@ export default function TemplateGenerator({ initialTemplate, templates = [], onB
           <span>حرر بمعرفة المنظومة القانونية</span>
           <span>صفحة 1 من 1</span>
         </div>
-        <script>
-          window.onload = function() {
-            window.print();
-            window.close();
-          };
-        </script>
       </body>
       </html>
-    `);
-    printWindow.document.close();
+    `;
+    document.body.appendChild(printFrame);
   };
 
   // Copy HTML/Text to clipboard
-  const handleCopy = () => {
+  const handleCopy = async () => {
     const cleanHtml = getCleanPrintHtml();
-    // Create temporary element to copy formatted plain text
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = cleanHtml;
-    const plainText = tempDiv.innerText || tempDiv.textContent;
-    navigator.clipboard.writeText(plainText).then(() => {
+    // Parse in an inert document so template image/event handlers cannot run in the app.
+    const parsed = new DOMParser().parseFromString(cleanHtml, 'text/html');
+    parsed.querySelectorAll('script, style, iframe, object').forEach((element) => element.remove());
+    const plainText = parsed.body.textContent || '';
+    try {
+      await navigator.clipboard.writeText(plainText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-    });
+    } catch {
+      window.alert('تعذر نسخ المستند. يرجى السماح بالوصول إلى الحافظة أو استخدام الطباعة.');
+    }
   };
 
   const placeholdersList = currentTemplate?.placeholders || [];

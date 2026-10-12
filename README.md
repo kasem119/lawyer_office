@@ -98,9 +98,15 @@ lawyer_office/
 │   ├── routes/          # مسارات ونقاط النهاية للـ API
 │   ├── middleware/      # التحقق والحماية
 │   └── package.json
+├── deploy/              # أدوات النشر وإعدادات VPS
+├── docs/                # وثائق المشروع والتصميم والنشر
+├── scripts/             # أدوات التطوير وWindows وأرشيف الإصلاحات
+├── artifacts/           # سجلات ونواتج محلية مستثناة من Git
 ├── package.json         # أوامر التشغيل المجمعة
 └── README.md
 ```
+
+راجع [دليل الوثائق](docs/README.md) و[هيكل المشروع وقواعد تنظيم الملفات](docs/PROJECT-STRUCTURE.md).
 
 ---
 

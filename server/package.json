@@ -11,7 +11,12 @@
     "tray": "electron trayApp.js",
     "service:install": "node windowsService.js install",
     "service:uninstall": "node windowsService.js uninstall",
-    "test": "npx cross-env SEED_DEMO_DATA=true node tests/run_tests.js"
+    "test": "npx cross-env SEED_DEMO_DATA=true node tests/run_tests.js",
+    "test:improvements": "node tests/improvements.mjs",
+    "test:permissions": "node tests/permissions.mjs",
+    "test:security-review": "node tests/security-review.mjs",
+    "test:review-regressions": "node tests/review-regressions.mjs",
+    "test:notifications": "node tests/notifications.mjs"
   },
   "jest": {
     "testEnvironment": "node",
@@ -35,7 +40,8 @@
     "node-windows": "^1.0.0-beta.8",
     "nodemailer": "^10.0.9",
     "puppeteer": "^25.10.0",
-    "sql.js": "^1.14.1"
+    "sql.js": "^1.14.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@babel/core": "^8.0.1",

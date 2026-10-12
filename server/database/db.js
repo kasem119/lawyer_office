@@ -106,7 +106,7 @@ function runColumnMigrations() {
       trialEnd.setDate(trialEnd.getDate() + 365);
       rawDb.prepare(`
         INSERT INTO tenants (id, slug, name, owner_name, email, phone, city, plan, status, trial_ends_at, subscription_ends_at)
-        VALUES (1, 'default', 'المكتب الرئيسي للمحاماة', 'المدير العام', 'admin@lawyer-system.local', '0910000000', 'طرابلس', 'pro', 'active', ?, ?)
+        VALUES (1, 'default', 'المكتب الرئيسي للمحاماة', 'المدير العام', 'kasemgammo15@gmail.com', '0911225020 / 0921225020', 'طرابلس', 'pro', 'active', ?, ?)
       `).run(trialEnd.toISOString(), trialEnd.toISOString());
     }
   } catch (err) {

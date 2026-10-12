@@ -4,7 +4,8 @@ import { authenticateToken } from '../middleware/auth.js';
 import { checkConflict } from '../services/conflictService.js';
 import { createNotification } from '../services/notificationService.js';
 import { validateCase } from '../middleware/validator.js';
-import { canManageCase } from '../middleware/permissions.js';
+import { canManageCase, isOfficeStaff } from '../middleware/permissions.js';
+import { validateCaseStatus, caseClosedAt } from '../services/caseStatusService.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -158,7 +159,7 @@ router.post('/', validateCase, (req, res, next) => {
     if (lawyerIds.length > 0) {
       const placeholders = lawyerIds.map(() => '?').join(', ');
       const matchingLawyers = db.prepare(`
-        SELECT id FROM users WHERE tenant_id = ? AND is_active = 1 AND id IN (${placeholders})
+        SELECT id FROM users WHERE tenant_id = ? AND is_active = 1 AND role IN ('admin', 'lawyer') AND id IN (${placeholders})
       `).all(tenantId, ...lawyerIds);
       if (matchingLawyers.length !== lawyerIds.length) {
         return res.status(400).json({ message: 'يجب أن ينتمي جميع المحامين المحددين إلى هذا المكتب وأن تكون حساباتهم مفعلة' });
@@ -207,6 +208,52 @@ router.post('/', validateCase, (req, res, next) => {
   }
 });
 
+// PATCH /api/cases/:id/status - Update case status
+router.patch('/:id/status', (req, res, next) => {
+  try {
+    const tenantId = getTenantId(req);
+    const { status, closure_note } = req.body;
+    if (closure_note !== undefined && (typeof closure_note !== 'string' || closure_note.length > 20000)) {
+      return res.status(400).json({ message: 'ملاحظة الإغلاق غير صالحة' });
+    }
+
+    const existing = db.prepare('SELECT title, lead_lawyer_id FROM cases WHERE id = ? AND tenant_id = ?').get(req.params.id, tenantId);
+    if (!existing) {
+      return res.status(404).json({ message: 'القضية غير موجودة' });
+    }
+
+    if (req.user.role !== 'admin' && existing.lead_lawyer_id !== req.user.id) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية تعديل هذه القضية' });
+    }
+
+    const statusError = validateCaseStatus(db, req.params.id, status);
+    if (statusError) {
+      return res.status(400).json({ message: statusError });
+    }
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE cases
+        SET status = ?, closed_at = ?
+        WHERE id = ? AND tenant_id = ?
+      `).run(status, caseClosedAt(status), req.params.id, tenantId);
+      if ((status === 'closed' || status === 'archived') && closure_note?.trim()) {
+        db.prepare(`INSERT INTO case_notes (case_id, content, note_type, is_private, created_by)
+          VALUES (?, ?, 'court_result', 0, ?)`)
+          .run(req.params.id, closure_note.trim(), req.user.id);
+      }
+
+      db.prepare(`
+        INSERT INTO activity_log (user_id, action, entity_type, details_json, tenant_id)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(req.user.id, 'UPDATE_CASE_STATUS', 'case', JSON.stringify({ caseId: req.params.id, title: existing.title, status }), tenantId);
+    })();
+
+    res.json({ success: true, message: 'تم تحديث حالة القضية بنجاح' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/cases/:id - Update case
 router.put('/:id', (req, res, next) => {
   try {
@@ -215,7 +262,7 @@ router.put('/:id', (req, res, next) => {
       case_number, title, description, court_name, case_type, status, priority,
       client_id, lead_lawyer_id, opponent_name, opponent_id_number, opponent_lawyer, opponent_phone
     } = req.body;
-    
+
     // Check permission: Admin or Lead lawyer of this tenant
     const existing = db.prepare('SELECT lead_lawyer_id FROM cases WHERE id = ? AND tenant_id = ?').get(req.params.id, tenantId);
     if (!existing) {
@@ -226,6 +273,18 @@ router.put('/:id', (req, res, next) => {
       return res.status(403).json({ message: 'ليس لديك صلاحية تعديل هذه القضية' });
     }
 
+    if (status !== undefined) {
+      const statusError = validateCaseStatus(db, req.params.id, status);
+      if (statusError) return res.status(400).json({ message: statusError });
+    }
+
+    if (client_id != null && !db.prepare('SELECT id FROM clients WHERE id = ? AND tenant_id = ?').get(client_id, tenantId)) {
+      return res.status(400).json({ message: 'الموكل المحدد لا ينتمي إلى هذا المكتب' });
+    }
+    if (lead_lawyer_id != null && !isOfficeStaff(req.user, lead_lawyer_id)) {
+      return res.status(400).json({ message: 'المحامي المسؤول يجب أن يكون حسابًا مفعّلًا في هذا المكتب' });
+    }
+
     db.prepare(`
       UPDATE cases
       SET case_number = COALESCE(?, case_number),
@@ -234,6 +293,7 @@ router.put('/:id', (req, res, next) => {
           court_name = COALESCE(?, court_name),
           case_type = COALESCE(?, case_type),
           status = COALESCE(?, status),
+          closed_at = CASE WHEN ? IS NULL THEN closed_at ELSE ? END,
           priority = COALESCE(?, priority),
           client_id = COALESCE(?, client_id),
           lead_lawyer_id = COALESCE(?, lead_lawyer_id),
@@ -243,7 +303,7 @@ router.put('/:id', (req, res, next) => {
           opponent_phone = COALESCE(?, opponent_phone)
       WHERE id = ? AND tenant_id = ?
     `).run(
-      case_number, title, description, court_name, case_type, status, priority,
+      case_number, title, description, court_name, case_type, status, status, caseClosedAt(status), priority,
       client_id, lead_lawyer_id, opponent_name, opponent_id_number, opponent_lawyer, opponent_phone,
       req.params.id, tenantId
     );

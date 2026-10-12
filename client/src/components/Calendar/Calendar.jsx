@@ -69,15 +69,12 @@ export default function Calendar() {
 
   const handleExport = async () => {
     try {
-      const token = localStorage.getItem('token');
-      let url = `/api/export/events?format=${exportFormat}`;
+      let url = `/exports/events?format=${exportFormat}`;
       if (exportWeek !== 'all') {
         url += `&week=${exportWeek}`;
       }
 
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const res = await apiFetch(url);
       
       if (!res.ok) throw new Error('Export failed');
       
@@ -97,7 +94,7 @@ export default function Calendar() {
     }
   };
 
-  return (
+return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>

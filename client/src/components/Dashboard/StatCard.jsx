@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function StatCard({ title, value, icon: Icon, color = 'var(--primary)', subtitle }) {
   return (
-    <div className="glass-card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+    <div className="glass-card stat-card" style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
         <div style={{ fontSize: '1.5rem', fontWeight: '800', color: 'var(--text-main)', lineHeight: 1.2 }}>{value}</div>

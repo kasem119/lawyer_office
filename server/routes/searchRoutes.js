@@ -45,12 +45,22 @@ router.get('/', authenticateToken, (req, res, next) => {
     }
 
     // Search Clients within current tenant only
-    clients = db.prepare(`
+    let clientsSql = `
       SELECT id, name, phone, email 
       FROM clients 
       WHERE tenant_id = ? AND (name LIKE ? OR phone LIKE ? OR email LIKE ? OR address LIKE ?)
-      LIMIT 10
-    `).all(tenantId, likeQuery, likeQuery, likeQuery, likeQuery);
+    `;
+    const clientParams = [tenantId, likeQuery, likeQuery, likeQuery, likeQuery];
+    if (!isAdmin) {
+      clientsSql += ` AND EXISTS (
+        SELECT 1 FROM cases c WHERE c.client_id = clients.id AND c.tenant_id = ?
+        AND (c.lead_lawyer_id = ? OR EXISTS (
+          SELECT 1 FROM case_lawyers cl WHERE cl.case_id = c.id AND cl.user_id = ?
+        ))
+      )`;
+      clientParams.push(tenantId, userId, userId);
+    }
+    clients = db.prepare(clientsSql + ' LIMIT 10').all(...clientParams);
 
     // Search Tasks within current tenant only
     if (isAdmin) {

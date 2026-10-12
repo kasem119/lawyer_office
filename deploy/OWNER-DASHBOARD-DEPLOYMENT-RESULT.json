@@ -1,0 +1,19 @@
+{
+  "status": "deployed",
+  "backup": "/opt/lawyer_office/deployment-backups/owner-dashboard-20261010-213642",
+  "host": "102.203.202.104",
+  "port": 22,
+  "files": [
+    "server/routes/platformAdminRoutes.js",
+    "server/routes/authRoutes.js",
+    "server/middleware/auth.js",
+    "client/dist/assets/index-Dpz6GZ46.js",
+    "client/dist/assets/icons-BInN0MBM.js",
+    "client/dist/assets/Button-CGVAzA66.js",
+    "client/dist/assets/react-vendor-BZAOunKw.js",
+    "client/dist/assets/PlatformAdmin-BllEetTD.js"
+  ],
+  "health": "ok",
+  "settings_table": "present",
+  "verified_at_utc": "20261010-213642"
+}

@@ -61,7 +61,8 @@ router.get('/overview', authenticateToken, (req, res, next) => {
       FROM documents d
       JOIN cases c ON d.case_id = c.id
       WHERE c.tenant_id = ?
-    `).get(tenantId);
+      ${isLawyer ? 'AND (c.lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = c.id AND cl.user_id = ?))' : ''}
+    `).get(...(isLawyer ? [tenantId, lawyerId, lawyerId] : [tenantId]));
     const totalDocuments = totalDocsRow ? totalDocsRow.count : 0;
     
     let monthCondition = isLawyer ? ` AND (lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?))` : '';
@@ -237,7 +238,10 @@ router.get('/financial-summary', authenticateToken, (req, res, next) => {
 router.get('/case-types', authenticateToken, (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
-    const types = db.prepare(`SELECT case_type, COUNT(*) as count FROM cases WHERE tenant_id = ? GROUP BY case_type`).all(tenantId);
+    const isLawyer = req.user.role !== 'admin';
+    const types = db.prepare(`SELECT case_type, COUNT(*) as count FROM cases WHERE tenant_id = ?
+      ${isLawyer ? 'AND (lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl WHERE cl.case_id = cases.id AND cl.user_id = ?))' : ''}
+      GROUP BY case_type`).all(...(isLawyer ? [tenantId, req.user.id, req.user.id] : [tenantId]));
     res.json({
       success: true,
       data: types

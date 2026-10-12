@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import EmptyState from './EmptyState';
 import { LayoutList, Table as TableIcon } from 'lucide-react';
+import useMediaQuery from '../../hooks/useMediaQuery';
 
 export default function DataTable({ 
   columns, 
@@ -10,22 +11,15 @@ export default function DataTable({
   emptyActionLabel,
   onEmptyAction
 }) {
-  const [isMobileScreen, setIsMobileScreen] = useState(() => {
-    return typeof window !== 'undefined' && window.innerWidth <= 768;
-  });
+  const isMobileScreen = useMediaQuery('(max-width: 768px)');
 
   const [viewMode, setViewMode] = useState(() => {
     return typeof window !== 'undefined' && window.innerWidth <= 768 ? 'cards' : 'table';
   });
 
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth <= 768;
-      setIsMobileScreen(mobile);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    if (isMobileScreen) setViewMode('cards');
+  }, [isMobileScreen]);
 
   if (data.length === 0) {
     return (
@@ -51,11 +45,8 @@ export default function DataTable({
   const statusCol = columns.find(c => c.accessor === 'status');
   
   // Primary title column (usually 1st or 2nd)
-  const titleCol = columns.find(c => 
-    c.accessor === 'title' || 
-    c.accessor === 'name' || 
-    c.accessor === 'case_number'
-  ) || columns[0];
+  const titleCol = columns.find(c => c.accessor === 'title' || c.accessor === 'name')
+    || columns.find(c => c.accessor === 'case_number') || columns[0];
 
   // Other detail columns
   const detailCols = columns.filter(c => c !== actionsCol && c !== titleCol);
@@ -76,6 +67,7 @@ export default function DataTable({
             <button
               type="button"
               onClick={() => setViewMode('cards')}
+              aria-pressed={viewMode === 'cards'}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -96,6 +88,7 @@ export default function DataTable({
             <button
               type="button"
               onClick={() => setViewMode('table')}
+              aria-pressed={viewMode === 'table'}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -124,7 +117,7 @@ export default function DataTable({
             <div key={rowIdx} className="datatable-mobile-card">
               {/* Header: Title and Status */}
               <div className="datatable-mobile-card-header">
-                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div className="datatable-mobile-card-title" style={{ flex: 1, minWidth: 0 }}>
                   {titleCol ? (titleCol.render ? titleCol.render(row) : row[titleCol.accessor]) : `#${rowIdx + 1}`}
                 </div>
                 {statusCol && (

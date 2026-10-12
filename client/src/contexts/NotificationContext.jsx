@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { apiFetch, getServerUrl } from '../api/client';
 import { useAuth } from './AuthContext';
+import { deviceNotificationSupport, enableDeviceNotifications, restoreDeviceNotifications, disableDeviceNotifications, testDeviceNotification } from '../utils/deviceNotifications';
 
 const NotificationContext = createContext();
 
@@ -32,12 +33,13 @@ function playChimeSound() {
     gain2.connect(ctx.destination);
     osc2.start(now + 0.12);
     osc2.stop(now + 0.55);
+    setTimeout(() => { void ctx.close(); }, 700);
   } catch (e) {
     // Audio context may be restricted before user interaction
   }
 }
 
-function triggerNativeAlert(title, message) {
+function triggerNativeAlert(notification, enabled) {
   // Mobile vibration
   if (typeof navigator !== 'undefined' && navigator.vibrate) {
     try { navigator.vibrate([200, 100, 200]); } catch (e) {}
@@ -46,24 +48,9 @@ function triggerNativeAlert(title, message) {
   // Audio chime
   playChimeSound();
 
-  // Native desktop/phone push notification
-  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-    try {
-      new Notification(title, {
-        body: message,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png'
-      });
-    } catch (e) {
-      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-        navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification(title, {
-            body: message,
-            icon: '/icons/icon-192.png'
-          });
-        }).catch(() => {});
-      }
-    }
+  // Browser notifications arrive through Web Push, avoiding duplicate WS alerts.
+  if (enabled && window.electronAPI?.showNotification) {
+    void window.electronAPI.showNotification({ title: notification.title, body: notification.message }).catch(() => {});
   }
 }
 
@@ -71,32 +58,59 @@ export function NotificationProvider({ children }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [deviceEnabled, setDeviceEnabled] = useState(false);
+  const [deviceBusy, setDeviceBusy] = useState(false);
+  const [deviceError, setDeviceError] = useState('');
+  const enabledRef = useRef(false);
+  const seenRef = useRef(new Set());
+  const initializedRef = useRef(false);
+  const userRef = useRef(user);
+  userRef.current = user;
+  enabledRef.current = deviceEnabled;
+  const deviceSupport = deviceNotificationSupport();
 
-  // Request browser notification permission once user is logged in
+  // Restore only this account's explicit device preference; never prompt on load.
   useEffect(() => {
-    if (user && typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().catch(() => {});
-      }
+    let cancelled = false;
+    setDeviceEnabled(false);
+    setDeviceError('');
+    if (user && user.role !== 'super_admin') {
+      restoreDeviceNotifications(user.id).then(enabled => {
+        if (!cancelled) setDeviceEnabled(enabled);
+      }).catch(() => {});
     }
+    return () => { cancelled = true; };
   }, [user]);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user || user.role === 'super_admin') return;
     try {
       const res = await apiFetch('/notifications');
       if (res.ok) {
         const data = await res.json();
+        if (userRef.current?.id !== user.id) return;
+        const incoming = data.notifications || [];
+        for (const notification of incoming) {
+          if (initializedRef.current && !notification.is_read && !seenRef.current.has(notification.id)) {
+            triggerNativeAlert(notification, enabledRef.current);
+          }
+          seenRef.current.add(notification.id);
+        }
+        initializedRef.current = true;
         setNotifications(data.notifications || []);
         setUnreadCount((data.notifications || []).filter(n => n.is_read === 0).length);
       }
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    if (user?.role === 'super_admin') return;
+    seenRef.current = new Set();
+    initializedRef.current = false;
+    setNotifications([]);
+    setUnreadCount(0);
+    if (!user || user.role === 'super_admin') return;
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 60000); // reduced polling as backup
 
@@ -105,8 +119,10 @@ export function NotificationProvider({ children }) {
 
     let ws = null;
     let reconnectTimeout = null;
+    let disposed = false;
 
     function connectWS() {
+      if (disposed) return;
       try {
         const apiBase = new URL(getServerUrl() || window.location.origin);
         const protocol = apiBase.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -118,9 +134,11 @@ export function NotificationProvider({ children }) {
           try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'NEW_NOTIFICATION' && msg.data) {
-              setNotifications(prev => [msg.data, ...prev]);
+              if (disposed || seenRef.current.has(msg.data.id)) return;
+              seenRef.current.add(msg.data.id);
+              setNotifications(prev => [msg.data, ...prev.filter(n => n.id !== msg.data.id)].slice(0, 50));
               setUnreadCount(prev => prev + 1);
-              triggerNativeAlert(msg.data.title, msg.data.message);
+              triggerNativeAlert(msg.data, enabledRef.current);
             }
           } catch (e) {
             console.warn('WS message parse error:', e);
@@ -129,7 +147,7 @@ export function NotificationProvider({ children }) {
 
         ws.onclose = () => {
           // Reconnect after 5 seconds if disconnected
-          reconnectTimeout = setTimeout(connectWS, 5000);
+          if (!disposed) reconnectTimeout = setTimeout(connectWS, 5000);
         };
 
         ws.onerror = () => {
@@ -141,8 +159,28 @@ export function NotificationProvider({ children }) {
     }
 
     connectWS();
+    const resume = () => { if (document.visibilityState === 'visible') fetchNotifications(); };
+    const pushReceived = (event) => {
+      if (!event.data) return;
+      if (event.data.type === 'PUSH_NOTIFICATION' && event.data.userId === user.id) {
+        fetchNotifications();
+      }
+      // Service worker asks us to re-subscribe after key rotation
+      if (event.data.type === 'PUSH_SUBSCRIPTION_CHANGED') {
+        enableDeviceNotifications(userRef.current?.id).catch(err =>
+          console.warn('[Push] Re-subscription after key change failed:', err.message)
+        );
+      }
+    };
+    document.addEventListener('visibilitychange', resume);
+    window.addEventListener('online', resume);
+    navigator.serviceWorker?.addEventListener('message', pushReceived);
 
     return () => {
+      disposed = true;
+      document.removeEventListener('visibilitychange', resume);
+      window.removeEventListener('online', resume);
+      navigator.serviceWorker?.removeEventListener('message', pushReceived);
       clearInterval(interval);
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (ws) {
@@ -150,7 +188,31 @@ export function NotificationProvider({ children }) {
         ws.close();
       }
     };
-  }, [user]);
+  }, [user, fetchNotifications]);
+
+  const changeDeviceNotifications = async () => {
+    if (!user || user.role === 'super_admin' || deviceBusy) return;
+    setDeviceBusy(true);
+    setDeviceError('');
+    try {
+      if (deviceEnabled) {
+        await disableDeviceNotifications();
+        setDeviceEnabled(false);
+      } else {
+        await enableDeviceNotifications(user.id);
+        setDeviceEnabled(true);
+      }
+    } catch (err) { setDeviceError(err.message); }
+    finally { setDeviceBusy(false); }
+  };
+
+  const testNotification = async () => {
+    setDeviceBusy(true);
+    setDeviceError('');
+    try { await testDeviceNotification(); }
+    catch (err) { setDeviceError(err.message); }
+    finally { setDeviceBusy(false); }
+  };
 
   const markAsRead = async (id) => {
     try {
@@ -171,7 +233,8 @@ export function NotificationProvider({ children }) {
   };
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, refreshNotifications: fetchNotifications }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, refreshNotifications: fetchNotifications,
+      deviceSupport, deviceEnabled, deviceBusy, deviceError, changeDeviceNotifications, testNotification }}>
       {children}
     </NotificationContext.Provider>
   );

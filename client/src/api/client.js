@@ -25,8 +25,13 @@ function defaultServerUrl() {
   const stored = localStorage.getItem('server_url');
   const origin = pageOrigin();
   const pageHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  const configuredOrigin = localStorage.getItem('server_url_origin');
 
-  if (stored) {
+  // On a hosted web app, ignore legacy device-specific server addresses. They can
+  // silently send a phone to an old office database while the laptop uses this site.
+  // Keep a manual override only when it was explicitly selected on this same origin.
+  const keepStoredServer = !origin || isLocalhostUrl(origin) || configuredOrigin === origin;
+  if (stored && keepStoredServer) {
     const cleaned = normalizeServerUrl(stored);
     const staleLocalhost =
       isLocalhostUrl(cleaned) &&
@@ -46,10 +51,45 @@ function defaultServerUrl() {
 }
 
 let serverUrl = defaultServerUrl();
+const pendingRefreshes = new Map();
+
+function refreshAccessToken(baseUrl, accessToken, refreshToken) {
+  const key = JSON.stringify([baseUrl, accessToken, refreshToken]);
+  if (pendingRefreshes.has(key)) return pendingRefreshes.get(key);
+
+  const refresh = (async () => {
+    const refreshRes = await fetch(`${baseUrl}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+    const refreshData = refreshRes.ok ? await refreshRes.json() : null;
+    // A completed refresh must never restore a logged-out session or overwrite a new login.
+    if (normalizeServerUrl(serverUrl) !== baseUrl ||
+        localStorage.getItem('access_token') !== accessToken ||
+        localStorage.getItem('refresh_token') !== refreshToken) return null;
+
+    if (refreshData?.accessToken && refreshData?.refreshToken) {
+      localStorage.setItem('access_token', refreshData.accessToken);
+      localStorage.setItem('refresh_token', refreshData.refreshToken);
+      return refreshData.accessToken;
+    }
+
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.reload();
+    return null;
+  })().finally(() => pendingRefreshes.delete(key));
+
+  pendingRefreshes.set(key, refresh);
+  return refresh;
+}
 
 export function setServerUrl(url) {
   serverUrl = normalizeServerUrl(url);
   localStorage.setItem('server_url', serverUrl);
+  const origin = pageOrigin();
+  if (origin) localStorage.setItem('server_url_origin', origin);
 }
 
 export function getServerUrl() {
@@ -58,6 +98,7 @@ export function getServerUrl() {
 
 export async function apiFetch(endpoint, options = {}) {
   const token = localStorage.getItem('access_token');
+  const sessionRefreshToken = localStorage.getItem('refresh_token');
   const headers = {
     ...options.headers
   };
@@ -100,26 +141,14 @@ export async function apiFetch(endpoint, options = {}) {
     if (response.status === 403 || response.status === 401) {
       const data = await response.clone().json().catch(() => ({}));
       if (data.code === 'TOKEN_EXPIRED') {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const refreshRes = await fetch(`${baseUrl}/api/auth/refresh`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken })
-          });
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            localStorage.setItem('access_token', refreshData.accessToken);
-            localStorage.setItem('refresh_token', refreshData.refreshToken);
-
-            // Retry original request with new token
-            headers['Authorization'] = `Bearer ${refreshData.accessToken}`;
+        if (sessionRefreshToken && localStorage.getItem('access_token') === token &&
+            localStorage.getItem('refresh_token') === sessionRefreshToken &&
+            normalizeServerUrl(serverUrl) === baseUrl) {
+          const newToken = await refreshAccessToken(baseUrl, token, sessionRefreshToken);
+          if (newToken && localStorage.getItem('access_token') === newToken &&
+              normalizeServerUrl(serverUrl) === baseUrl) {
+            headers['Authorization'] = `Bearer ${newToken}`;
             response = await fetch(url, { ...config, headers });
-          } else {
-            // Refresh failed, logout
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-            window.location.reload();
           }
         }
       }

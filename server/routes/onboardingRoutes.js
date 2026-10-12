@@ -1,5 +1,6 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import db from '../database/db.js';
 import { generateTokens } from '../middleware/auth.js';
 
@@ -8,7 +9,8 @@ const router = express.Router();
 // POST /api/onboarding/register-office
 router.post('/register-office', (req, res, next) => {
   try {
-    const { officeName, adminName, email, password, phone, city, slug } = req.body;
+    const { officeName, adminName, password, phone, city, slug } = req.body;
+    const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     
     if (!officeName || !adminName || !email || !password) {
       return res.status(400).json({ message: 'الاسم، اسم المكتب، البريد الإلكتروني، وكلمة المرور مطلوبة' });
@@ -18,21 +20,26 @@ router.post('/register-office', (req, res, next) => {
       return res.status(400).json({ message: 'كلمة المرور يجب أن لا تقل عن 8 خانات' });
     }
 
-    // Clean or generate slug
-    const cleanSlug = (slug || officeName.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '-'))
-      .trim()
-      .toLowerCase()
-      .slice(0, 50);
+    // Arabic office names do not produce a useful ASCII slug. Never derive a
+    // shared slug from them: generate a random one when the client has none.
+    const requestedSlug = typeof slug === 'string'
+      ? slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '').slice(0, 50)
+      : '';
+    const cleanSlug = requestedSlug || `office-${randomBytes(6).toString('hex')}`;
 
-    // Check if slug or email exists
-    const existingTenant = db.prepare('SELECT id FROM tenants WHERE slug = ? OR email = ?').get(cleanSlug, email);
-    if (existingTenant) {
-      return res.status(400).json({ message: 'اسم المعرف أو البريد الإلكتروني مسجل بالفعل لمكتب آخر' });
+    const existingTenantEmail = db.prepare('SELECT id FROM tenants WHERE LOWER(TRIM(email)) = ?').get(email);
+    if (existingTenantEmail) {
+      return res.status(409).json({ message: 'هذا البريد الإلكتروني مسجل بالفعل لمكتب. سجّل الدخول أو استخدم بريداً آخر.' });
     }
 
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existingUser) {
-      return res.status(400).json({ message: 'البريد الإلكتروني مسجل بالفعل لمستخدم آخر' });
+    const existingUserEmail = db.prepare('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?').get(email);
+    if (existingUserEmail) {
+      return res.status(409).json({ message: 'هذا البريد الإلكتروني مسجل بالفعل. سجّل الدخول أو استخدم بريداً آخر.' });
+    }
+
+    const existingTenantSlug = db.prepare('SELECT id FROM tenants WHERE slug = ?').get(cleanSlug);
+    if (existingTenantSlug) {
+      return res.status(409).json({ message: 'معرّف المكتب مستخدم بالفعل. أعد المحاولة لإنشاء معرّف جديد.' });
     }
 
     const passwordHash = bcrypt.hashSync(password, 10);
@@ -89,7 +96,17 @@ router.post('/register-office', (req, res, next) => {
       };
     });
 
-    const result = createOffice();
+    let result;
+    try {
+      result = createOffice();
+    } catch (err) {
+      // A simultaneous signup can pass the checks above, then lose the unique
+      // index race. Return a useful conflict instead of a generic server error.
+      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        return res.status(409).json({ message: 'البريد الإلكتروني أو معرّف المكتب مسجل بالفعل. راجع البيانات وحاول مجدداً.' });
+      }
+      throw err;
+    }
     const tokens = generateTokens(result.user);
 
     res.status(201).json({

@@ -17,7 +17,7 @@ export default function SubscriptionPage() {
   // Payment form state
   const [payForm, setPayForm] = useState({
     amount: '950',
-    method: 'bank_transfer',
+    method: 'onepay',
     reference_number: '',
     notes: ''
   });
@@ -226,33 +226,25 @@ export default function SubscriptionPage() {
               طرق السداد المعتمدة في ليبيا 🏦
             </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '20px' }}>
-              يمكنك سداد الاشتراك عبر أي من المصارف الليبية أو الخدمات الإلكترونية أو الدفع نقداً:
+              يمكنك سداد الاشتراك عبر إحدى وسائل الدفع المعتمدة التالية:
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Bank 1 */}
+              {/* Option 1: OnePay */}
               <div style={{ padding: '14px', background: 'var(--bg-dark)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>🏛️ مصرف الجمهورية</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>اسم الحساب: <strong>إدارة منظومة المحاماة</strong></div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>رقم الحساب: <strong style={{ direction: 'ltr' }}>018-XXXXXX</strong></div>
-                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>✓ يدعم تطبيق أنا وياك للتحويل الفوري</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>💳 وان باي (OnePay)</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>رقم الهاتف المعتمد للدفع: <strong style={{ direction: 'ltr', display: 'inline-block' }}>0911225020 / 0921225020</strong></div>
+                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>✓ دفع إلكتروني فوري ومباشر عبر تطبيق OnePay</div>
               </div>
 
-              {/* Bank 2 */}
+              {/* Option 2: LY Pay */}
               <div style={{ padding: '14px', background: 'var(--bg-dark)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>🏛️ المصرف التجاري الوطني</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>اسم الحساب: <strong>إدارة منظومة المحاماة</strong></div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>رقم الحساب: <strong style={{ direction: 'ltr' }}>012-XXXXXX</strong></div>
-                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>✓ يدعم تطبيق موبي كاش (MobiCash)</div>
+                <div style={{ fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>📱 إل واي باي (LY Pay)</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>رقم الهاتف المعتمد للدفع: <strong style={{ direction: 'ltr', display: 'inline-block' }}>0911225020 / 0921225020</strong></div>
+                <div style={{ fontSize: '0.8rem', color: '#10b981', marginTop: '4px' }}>✓ دفع إلكتروني آمن وسريع عبر تطبيق LY Pay</div>
               </div>
 
-              {/* Electronic */}
-              <div style={{ padding: '14px', background: 'var(--bg-dark)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>📱 سداد (Sadad) / تداول</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>رقم الهاتف المعتمد للدفع: <strong>0910000000</strong></div>
-              </div>
-
-              {/* Cash option */}
+              {/* Option 3: Cash */}
               <div style={{ padding: '14px', background: 'var(--bg-dark)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                 <div style={{ fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '6px' }}>💵 الدفع نقداً (كاش)</div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>يمكن السداد نقداً في مكتبنا أو لمندوب مع استلام إيصال رسمي معتمد.</div>
@@ -274,7 +266,7 @@ export default function SubscriptionPage() {
                   أرسل صورة إشعار التحويل أو تفاصيل الدفع عبر واتساب ليتم تفعيل حسابك في دقائق:
                 </div>
                 <a
-                  href={`https://wa.me/218910000000?text=${encodeURIComponent(`السلام عليكم، قمت بسداد اشتراك المنظومة لمكتب: ${tenant?.name || ''}`)}`}
+                  href={`https://wa.me/218911225020?text=${encodeURIComponent(`السلام عليكم، قمت بسداد اشتراك المنظومة لمكتب: ${tenant?.name || ''}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -339,9 +331,8 @@ export default function SubscriptionPage() {
                   value={payForm.method}
                   onChange={(e) => setPayForm(f => ({ ...f, method: e.target.value }))}
                 >
-                  <option value="bank_transfer">تحويل مصرفي (الجمهورية / التجاري / الأمان)</option>
-                  <option value="sadad">خدمة سداد (Sadad)</option>
-                  <option value="mobicash">خدمة موبي كاش (MobiCash)</option>
+                  <option value="onepay">وان باي (OnePay)</option>
+                  <option value="ly_pay">إل واي باي (LY Pay)</option>
                   <option value="cash">دفع نقدي (كاش) / لمندوب</option>
                 </select>
               </div>
@@ -417,9 +408,12 @@ export default function SubscriptionPage() {
                     <tr key={p.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                       <td style={{ padding: '12px' }}>{new Date(p.created_at).toLocaleDateString('ar-LY')}</td>
                       <td style={{ padding: '12px' }}>
-                        {p.payment_method === 'bank_transfer' ? 'تحويل مصرفي' :
+                        {p.payment_method === 'onepay' ? 'وان باي (OnePay)' :
+                         p.payment_method === 'ly_pay' ? 'LY Pay' :
+                         p.payment_method === 'cash' ? 'نقداً (كاش)' :
+                         p.payment_method === 'bank_transfer' ? 'تحويل مصرفي' :
                          p.payment_method === 'sadad' ? 'سداد' :
-                         p.payment_method === 'mobicash' ? 'موبي كاش' : 'نقداً'}
+                         p.payment_method === 'mobicash' ? 'موبي كاش' : p.payment_method}
                       </td>
                       <td style={{ padding: '12px', direction: 'ltr', textAlign: 'right' }}>{p.reference_number || '-'}</td>
                       <td style={{ padding: '12px', fontWeight: 'bold' }}>{p.amount} د.ل</td>

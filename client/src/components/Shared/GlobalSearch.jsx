@@ -24,7 +24,7 @@ export default function GlobalSearch({ onNavigate }) {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') { setIsOpen(false); setMobileExpanded(false); }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -114,6 +114,7 @@ export default function GlobalSearch({ onNavigate }) {
             if (query.trim().length > 0) setIsOpen(true);
           }}
           title="بحث سريع في المنظومة"
+          className="mobile-search-trigger"
           style={{
             background: 'var(--bg-card)',
             border: '1px solid var(--border-color)',
@@ -129,6 +130,7 @@ export default function GlobalSearch({ onNavigate }) {
           }}
         >
           <Search size={18} color="var(--primary)" />
+          <span>ابحث عن قضية أو موكل...</span>
         </button>
       </div>
 

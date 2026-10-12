@@ -1,7 +1,7 @@
 # =============================================================
 # prepare-flash.ps1 - Prepare delivery copy on a flash drive
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File prepare-flash.ps1 -Destination E:\LawOffice-Delivery
+#   powershell -ExecutionPolicy Bypass -File scripts/windows/prepare-flash.ps1 -Destination E:\LawOffice-Delivery
 # =============================================================
 param(
     [Parameter(Mandatory = $true)]
@@ -9,7 +9,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 Write-Host "=== Preparing delivery copy ===" -ForegroundColor Cyan
 Write-Host "From: $projectRoot"

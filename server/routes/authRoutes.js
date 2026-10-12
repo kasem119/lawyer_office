@@ -25,7 +25,8 @@ router.post('/register', (req, res, next) => {
       return res.status(403).json({ message: 'تم إعداد المكتب بالفعل. يجب على مدير النظام إنشاء حسابات جديدة.' });
     }
 
-    const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const existingUser = db.prepare('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?').get(normalizedEmail);
     if (existingUser) {
       return res.status(400).json({ message: 'البريد الإلكتروني مسجل بالفعل لمستخدم آخر' });
     }
@@ -36,12 +37,12 @@ router.post('/register', (req, res, next) => {
       VALUES (?, ?, ?, ?, ?, 1)
     `);
     // The only public registration is the first, initial administrator.
-    const result = stmt.run(name, email, passwordHash, 'admin', phone || null);
+    const result = stmt.run(name, normalizedEmail, passwordHash, 'admin', phone || null);
 
     const newUser = {
       id: result.lastInsertRowid,
       name,
-      email,
+      email: normalizedEmail,
       role: 'admin',
       phone
     };
@@ -70,7 +71,7 @@ router.post('/login', validateLogin, (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+    const user = db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').get(email.toLowerCase());
     if (!user) {
       return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
     }
@@ -92,6 +93,12 @@ router.post('/login', validateLogin, (req, res, next) => {
       return res.status(401).json({ message: 'بيانات الدخول غير صحيحة' });
     }
 
+    const tenantId = user.tenant_id || 1;
+    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
+    if (user.role !== 'super_admin' && tenant && (tenant.is_active === 0 || tenant.status === 'suspended')) {
+      return res.status(403).json({ message: 'تم إيقاف حساب المكتب. يرجى التواصل مع مالك المنصة.' });
+    }
+
     const tokens = generateTokens(user);
 
     // Audit log
@@ -100,8 +107,6 @@ router.post('/login', validateLogin, (req, res, next) => {
       VALUES (?, ?, ?, ?)
     `).run(user.id, 'LOGIN', 'user', JSON.stringify({ email: user.email }));
 
-    const tenantId = user.tenant_id || 1;
-    const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(tenantId);
     const subscription = db.prepare('SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY id DESC LIMIT 1').get(tenantId);
 
     res.json({
@@ -139,6 +144,11 @@ router.post('/refresh', (req, res, next) => {
       const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.id);
       if (!user || user.is_active !== 1) {
         return res.status(403).json({ message: 'المستخدم غير موجود أو معطل' });
+      }
+
+      const tenant = db.prepare('SELECT * FROM tenants WHERE id = ?').get(user.tenant_id || 1);
+      if (user.role !== 'super_admin' && tenant && (tenant.is_active === 0 || tenant.status === 'suspended')) {
+        return res.status(403).json({ message: 'تم إيقاف حساب المكتب. يرجى التواصل مع مالك المنصة.' });
       }
 
       const tokens = generateTokens(user);

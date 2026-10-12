@@ -7,12 +7,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:bundle": "node scripts/check-bundle.mjs",
+    "test:auth-session": "node scripts/auth-session-regression.mjs",
+    "test:mobile": "node scripts/mobile-smoke.mjs",
     "preview": "vite preview",
     "electron:dev": "concurrently -k -s first \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "pack": "vite build && electron-builder --dir",
-    "dist:win": "vite build && electron-builder --win nsis",
-    "dist:portable": "vite build && electron-builder --win portable",
-    "dist:all": "vite build && electron-builder --win nsis portable"
+    "pack": "vite build --base=./ && electron-builder --dir",
+    "dist:win": "vite build --base=./ && electron-builder --win nsis",
+    "dist:portable": "vite build --base=./ && electron-builder --win portable",
+    "dist:all": "vite build --base=./ && electron-builder --win nsis portable"
   },
   "build": {
     "appId": "com.lawyeroffice.desktop",

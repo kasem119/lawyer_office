@@ -2,7 +2,6 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Camera, Trash2, FileText, Loader2, RotateCw } from 'lucide-react';
 import Button from '../Shared/Button';
 import { apiFetch } from '../../api/client';
-import { PDFDocument } from 'pdf-lib';
 
 /**
  * تصوير مستندات ورقية بكاميرا الهاتف ودمجها في ملف PDF واحد يُرفع على القضية.
@@ -155,6 +154,8 @@ export default function CameraDocumentUpload({ caseId, onUploaded }) {
   };
 
   const buildPdf = async () => {
+    // PDF generation is only needed when the user submits captured images.
+    const { PDFDocument } = await import('pdf-lib');
     const pdfDoc = await PDFDocument.create();
     for (const shot of shots) {
       const img = await loadImageElement(shot.dataUrl);
