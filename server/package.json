@@ -16,7 +16,8 @@
     "test:permissions": "node tests/permissions.mjs",
     "test:security-review": "node tests/security-review.mjs",
     "test:review-regressions": "node tests/review-regressions.mjs",
-    "test:notifications": "node tests/notifications.mjs"
+    "test:notifications": "node tests/notifications.mjs",
+    "test:legal-assistant": "node tests/legal-assistant.mjs"
   },
   "jest": {
     "testEnvironment": "node",

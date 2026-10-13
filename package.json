@@ -20,6 +20,7 @@
     "deploy:frontend": "python deploy/deploy.py --mode frontend",
     "deploy:backend": "python deploy/deploy.py --mode backend",
     "deploy:status": "python deploy/deploy.py --mode status",
-    "deploy:logs": "python deploy/deploy.py --mode logs"
+    "deploy:logs": "python deploy/deploy.py --mode logs",
+    "start:legal-retrieval": "node scripts/start-legal-retrieval.mjs"
   }
 }
