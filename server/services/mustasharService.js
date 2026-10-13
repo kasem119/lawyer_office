@@ -106,7 +106,7 @@ export async function generateMustasharResponse(mode, prompt = '', caseData = nu
     summarize_case: 'لخص الوقائع المتاحة دون اختراع وقائع، ثم بين ما تسنده النصوص المسترجعة فقط.' };
   // Omit names/phone/email/IDs: case authorization happens before this call.
   const caseContext = caseData ? { title: caseData.title, case_type: caseData.case_type, status: caseData.status } : null;
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw unavailable();
   const userText = JSON.stringify({ task: instructions[mode], reference_rule: 'references contains only legal_excerpts.reference values (1,2,3,4), never article numbers. If the excerpts cannot support the requested answer, return references: [] and explain the missing evidence.', request: prompt.slice(0, LIMITS.prompt), case: caseContext,
     legal_excerpts: sources.map((s, i) => ({ reference: i + 1, law: s.law_title, page: s.page, article: s.article, text: s.excerpt })) });
@@ -118,6 +118,7 @@ export async function generateMustasharResponse(mode, prompt = '', caseData = nu
         contents: [{ role: 'user', parts: [{ text: userText }] }],
         generationConfig: { temperature: 0.2, maxOutputTokens: LIMITS.outputTokens, responseMimeType: 'application/json',
           ...(model.startsWith('gemini-2.5-') && !model.includes('pro') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+          ...(model === 'gemini-3.5-flash-lite' ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}),
           responseSchema: { type: 'OBJECT', properties: { title: { type: 'STRING' }, content: { type: 'STRING' }, advice: { type: 'STRING' }, references: { type: 'ARRAY', items: { type: 'INTEGER' }, description: 'أرقام المراجع القانونية التي استندت إليها، مثل [1]، من legal_excerpts.reference فقط.' } }, required: ['title', 'content', 'advice', 'references'] } }
       }), signal: AbortSignal.any([AbortSignal.timeout(45000), ...(signal ? [signal] : [])])
     });

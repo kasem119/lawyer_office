@@ -13,7 +13,7 @@ Object.assign(process.env, {
   ENCRYPTION_KEY: 'legal-assistant-test-encryption-key',
   AI_PROVIDER: 'mustashar', LEGAL_RETRIEVAL_URL: 'http://127.0.0.1:8100',
   LEGAL_RETRIEVAL_TOKEN: 'integration-test-private-token-at-least-32', GEMINI_API_KEY: 'integration-test-not-a-real-key',
-  GEMINI_MODEL: 'gemini-test',
+  GEMINI_MODEL: 'gemini-3.5-flash-lite',
 });
 
 const originalFetch = globalThis.fetch;
@@ -175,6 +175,7 @@ try {
     for (const marker of ['PRIVATE CLIENT MARKER', 'PRIVATE OPPONENT MARKER', 'PRIVATE CASE NUMBER']) assert.ok(!bodies.includes(marker), `Sent identifying case field ${marker}`);
     const generation = JSON.parse(providerCalls()[0].init.body);
     assert.equal(generation.generationConfig.maxOutputTokens, 1200);
+    assert.deepEqual(generation.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
     assert.equal(generation.generationConfig.responseMimeType, 'application/json');
     assert.ok(!JSON.stringify(res.body).includes(process.env.GEMINI_API_KEY));
   });
