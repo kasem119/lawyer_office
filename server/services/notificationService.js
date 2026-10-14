@@ -1,5 +1,6 @@
 import db from '../database/db.js';
 import { sendToUser } from './websocketService.js';
+import { sendPushToUser } from './pushService.js';
 
 export function createNotification({ userId, title, message, type = 'info', relatedEntityType = null, relatedEntityId = null }) {
   try {
@@ -22,6 +23,8 @@ export function createNotification({ userId, title, message, type = 'info', rela
       created_at: new Date().toISOString()
     });
 
+    void sendPushToUser(userId, { id: Number(res.lastInsertRowid), title, message })
+      .catch(err => console.warn('Push delivery unavailable:', err.message));
     return res.lastInsertRowid;
   } catch (err) {
     console.error('Notification creation failed:', err);
