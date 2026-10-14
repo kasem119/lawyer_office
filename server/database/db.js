@@ -292,6 +292,7 @@ const db = {
   restoreFrom(snapshotPath) {
     if (DB_PATH === ':memory:') throw new Error('Restore requires a file database');
     const rollbackPath = `${DB_PATH}.restore-rollback`;
+    let rollbackCreated = false;
     const open = () => {
       rawDb = new DatabaseSync(DB_PATH);
       rawDb.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
@@ -301,18 +302,26 @@ const db = {
     rawDb.close();
     try {
       fs.copyFileSync(DB_PATH, rollbackPath);
+      rollbackCreated = true;
       fs.copyFileSync(snapshotPath, DB_PATH);
       open();
       runColumnMigrations();
       createIndexes();
-      fs.unlinkSync(rollbackPath);
+      // A cleanup failure must not revert a successfully restored database.
+      try { fs.unlinkSync(rollbackPath); } catch {}
     } catch (error) {
       try { rawDb.close(); } catch {}
-      for (const suffix of ['-wal', '-shm']) {
-        try { fs.unlinkSync(`${DB_PATH}${suffix}`); } catch {}
+      if (rollbackCreated) {
+        for (const suffix of ['-wal', '-shm']) {
+          try { fs.unlinkSync(`${DB_PATH}${suffix}`); } catch {}
+        }
+        fs.copyFileSync(rollbackPath, DB_PATH);
       }
-      if (fs.existsSync(rollbackPath)) fs.copyFileSync(rollbackPath, DB_PATH);
       open();
+      // Retain the fresh recovery copy if either rollback or reopening throws.
+      if (rollbackCreated) {
+        try { fs.unlinkSync(rollbackPath); } catch {}
+      }
       throw error;
     }
   }

@@ -107,6 +107,26 @@ try {
     const result = await restoreBackup(incomplete); assert.equal(result.success, false); assert.match(result.error, /Missing required table: tasks/);
     assert.equal(cached.get().value, 'changed'); assert.equal(fs.readFileSync(attachment, 'utf8'), 'legacy attachment');
   });
+  await check('Failed fresh rollback copy never restores stale recovery data', async () => {
+    const rollbackPath = `${DB_PATH}.restore-rollback`;
+    await db.backup(rollbackPath);
+    db.prepare('UPDATE restore_probe SET value=?').run('newer-than-stale-rollback');
+    const copy = fs.copyFileSync;
+    fs.copyFileSync = function(source, dest, ...args) {
+      if (dest === rollbackPath) throw new Error('Injected rollback creation failure');
+      return copy.call(this, source, dest, ...args);
+    };
+    try {
+      const result = await restoreBackup(original.destinationPath);
+      assert.equal(result.success, false); assert.match(result.error, /rollback creation/);
+      assert.equal(cached.get().value, 'newer-than-stale-rollback');
+      assert.equal(fs.readFileSync(attachment, 'utf8'), 'legacy attachment');
+    } finally {
+      fs.copyFileSync = copy;
+      fs.unlinkSync(rollbackPath);
+      db.prepare('UPDATE restore_probe SET value=?').run('changed');
+    }
+  });
   await check('Authenticated multipart ZIP upload restores despite extensionless multer path', async () => {
     const res = await request(app).post('/api/backups/restore').set('Authorization', auth()).attach('backup_file', original.destinationPath);
     assert.equal(res.status, 200, JSON.stringify(res.body)); assert.equal(cached.get().value, 'original');

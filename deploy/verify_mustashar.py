@@ -1,5 +1,6 @@
 """Read-only authenticated production smoke; tokens never leave remote memory."""
 import json
+import sys
 from deploy_mustashar import guarded, ROOT
 
 CHECK = r'''
@@ -24,7 +25,7 @@ const portal=await call('status',null,jwt.sign({id:user.id,role:'client'},JWT_SE
 if(portal.status!==403)throw Error('Portal isolation failed');
 const response=await call('assist',{mode:'legal_advice',prompt:'ما التزامات المستأجر في عقد الإيجار وفق القانون المدني الليبي؟ اذكر النصوص المتاحة فقط.'});
 const answer=await response.json();
-const result={ready:true,laws:45,pdf_status:pdf.status,pdf_bytes:bytes.length,portal_status:portal.status,ai_status:response.status,source:answer.data?.source,model:answer.data?.model,no_evidence:answer.data?.no_evidence,sources:answer.data?.sources?.length,answer_characters:answer.data?.content?.length};
+const result={ready:true,laws:45,pdf_status:pdf.status,pdf_bytes:bytes.length,portal_status:portal.status,ai_status:response.status,source:answer.data?.source,model:answer.data?.model,no_evidence:answer.data?.no_evidence,sources:answer.data?.sources?.length,answer_characters:answer.data?.content?.length,error_message:answer.message};
 console.log(JSON.stringify(result));
 if(response.status!==200||answer.data?.source!=='mustashar'||answer.data?.model!=='gemini-3.5-flash-lite'||answer.data?.no_evidence!==false)process.exitCode=1;
 db.close();
@@ -35,8 +36,20 @@ ssh.load_host_keys(str(ROOT/'deploy/.ssh-runtime/known_hosts'))
 ssh.set_missing_host_key_policy(guarded.paramiko.RejectPolicy())
 try:
     ssh.connect('102.203.202.104',username='root',password=guarded.credential(),timeout=25,look_for_keys=False,allow_agent=False)
-    result=guarded.command(ssh,'cd /opt/lawyer_office/server && node --input-type=module',CHECK,timeout=100)
+    stdin,stdout,stderr=ssh.exec_command('cd /opt/lawyer_office/server && node --input-type=module',timeout=100)
+    probe=CHECK
+    if '--no-articles' in sys.argv:
+        probe=probe.replace('ما التزامات المستأجر في عقد الإيجار وفق القانون المدني الليبي؟ اذكر النصوص المتاحة فقط.', 'لخص التزامات المستأجر في عقد الإيجار من المقتطفات المتاحة فقط. استخدم أرقام المراجع بين أقواس مربعة ولا تذكر أرقام المواد القانونية.')
+    stdin.write(probe)
+    stdin.channel.shutdown_write()
+    result=stdout.read().decode('utf-8').strip()
+    error=stderr.read().decode('utf-8')
+    code=stdout.channel.recv_exit_status()
+    # The script emits aggregate metadata only, never answers, keys or tokens.
+    if not result:
+        raise RuntimeError('AI smoke exited without aggregate result; exit='+str(code))
     (ROOT/'artifacts/MUSTASHAR-PRODUCTION-SMOKE.json').write_text(result,encoding='utf-8')
     print(result)
+    if code: raise SystemExit(code)
 finally:
     ssh.close()
