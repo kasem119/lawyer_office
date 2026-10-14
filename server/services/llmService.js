@@ -1,3 +1,5 @@
+import { isMustasharEnabled, generateMustasharResponse } from './mustasharService.js';
+
 /**
  * OpenAI-compatible chat client.
  * Works with Groq, OpenRouter, LLM7, Gemini (OpenAI compat), NVIDIA NIM, etc.
@@ -228,7 +230,8 @@ export async function generateLlmLegalResponse(mode, prompt, caseData) {
   }
 }
 
-export async function generateLegalAssist(mode, prompt, caseData) {
+export async function generateLegalAssist(mode, prompt, caseData, options = {}) {
+  if (isMustasharEnabled()) return generateMustasharResponse(mode, prompt, caseData, options);
   if (isLlmConfigured()) {
     try {
       return await generateLlmLegalResponse(mode, prompt, caseData);
