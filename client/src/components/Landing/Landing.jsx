@@ -61,7 +61,7 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
       id: 'trial',
       name: 'الباقة التجريبية',
       price: 'مجاناً',
-      period: '14 يوم',
+      period: '30 يوم',
       desc: 'تجربة حرة لكافة خصائص المنظومة بدون أي تكلفة مسبقة',
       features: [
         'مستخدم واحد (مدير المكتب)',
@@ -76,8 +76,8 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
     {
       id: 'starter',
       name: 'المكتب الفردي',
-      price: '450 د.ل',
-      period: 'سنوياً (~50 د.ل/شهر)',
+      price: '2,000 د.ل',
+      period: 'سنوياً (يعادل 166.67 د.ل شهرياً)',
       desc: 'مثالية للمحامي المستقل أو المكتب الفردي',
       features: [
         'حتى 2 مستخدمين (محامي + سكرتير)',
@@ -93,8 +93,8 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
     {
       id: 'pro',
       name: 'المكتب المحترف ⭐',
-      price: '950 د.ل',
-      period: 'سنوياً (~100 د.ل/شهر)',
+      price: '4,000 د.ل',
+      period: 'سنوياً (يعادل 333.33 د.ل شهرياً)',
       desc: 'الخيار الأكثر طلباً وشعبية بين مكاتب المحاماة في ليبيا',
       features: [
         'حتى 6 مستخدمين للمكتب',
@@ -111,8 +111,8 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
     {
       id: 'enterprise',
       name: 'الشركات والمؤسسات',
-      price: '1,800 د.ل',
-      period: 'سنوياً',
+      price: '5,000 د.ل',
+      period: 'سنوياً (يعادل 416.67 د.ل شهرياً)',
       desc: 'للمكاتب الكبرى والشركات القانونية والشراكات الواسعة',
       features: [
         'عدد غير محدود من المحامين',
@@ -129,11 +129,11 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
   const faqs = [
     {
       q: 'هل يمكنني تجربة المنظومة مجاناً قبل دفع أي مبلغ؟',
-      a: 'نعم بكل تأكيد! نوفر فترة تجريبية مجانية بالكامل لمدة 14 يوماً مع كافة الميزات الفعالة. لا نطلب أي بيانات دفع مسبقة، فقط سجّل حساب مكتبك وابدأ العمل فوراً.'
+      a: 'نعم بكل تأكيد! نوفر فترة تجريبية مجانية بالكامل لمدة 30 يوماً مع كافة الميزات الفعالة. لا نطلب أي بيانات دفع مسبقة، فقط سجّل حساب مكتبك وابدأ العمل فوراً.'
     },
     {
       q: 'ما هي طرق الدفع المتاحة داخل ليبيا؟',
-      a: 'نوفر جميع وسائل الدفع المعتمدة محلياً: تحويل مصرفي مباشر (مصرف الجمهورية عبر تطبيق أنا وياك، المصرف التجاري الوطني عبر موبي كاش، مصرف الأمان)، وخدمة سداد (Sadad)، أو الدفع نقداً في مكتبنا أو لمندوب مع استلام إيصال رسمي معتمد.'
+      a: 'نوفر وسائل الدفع المعتمدة محلياً: خدمة وان باي (OnePay)، خدمة إل واي باي (LY Pay)، والدفع نقداً (كاش) في مكتبنا أو لمندوب مع استلام إيصال رسمي معتمد.'
     },
     {
       q: 'هل بيانات موكلي وقضاياي آمنة ومحمية بسرية تامة؟',
@@ -152,38 +152,35 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)', color: 'var(--text-main)', direction: 'rtl', fontFamily: 'inherit' }}>
       {/* Top Navbar */}
-      <header style={{
+      <header className="landing-header" style={{
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        background: 'rgba(18, 24, 38, 0.88)',
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid var(--border-color)',
         padding: '12px 16px'
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="landing-header-inner" style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+          <div className="landing-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--primary)', display: 'grid', placeItems: 'center', color: '#fff', flexShrink: 0 }}>
               <Scale size={22} />
             </div>
             <div>
-              <div style={{ fontWeight: '800', fontSize: '1.05rem', color: 'var(--primary)', letterSpacing: '-0.3px', whiteSpace: 'nowrap' }}>
+              <div className="landing-brand-title" style={{ fontWeight: '800', fontSize: '1.05rem', letterSpacing: '-0.3px', whiteSpace: 'nowrap' }}>
                 منظومة المحامي الليبي
               </div>
-              <div className="hide-on-mobile" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              <div className="landing-brand-subtitle hide-on-mobile" style={{ fontSize: '0.72rem' }}>
                 إدارة مكاتب المحاماة والاستشارات القانونية
               </div>
             </div>
           </div>
 
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '24px', fontSize: '0.95rem' }} className="landing-nav">
-            <a href="#features" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>المميزات</a>
-            <a href="#plans" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>الباقات والأسعار</a>
-            <a href="#payments" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>طرق السداد</a>
-            <a href="#faq" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>الأسئلة الشائعة</a>
+          <nav className="landing-nav" aria-label="التنقل الرئيسي">
+            <a className="landing-nav-link" href="#features">المميزات</a>
+            <a className="landing-nav-link" href="#plans">الباقات والأسعار</a>
+            <a className="landing-nav-link" href="#payments">طرق السداد</a>
+            <a className="landing-nav-link" href="#faq">الأسئلة الشائعة</a>
           </nav>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="landing-auth-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Button variant="outline" size="sm" onClick={onNavigateToLogin}>
               دخول
             </Button>
@@ -236,7 +233,9 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
           </p>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '40px' }} className="landing-hero-actions">
-            <button
+              <button
+              type="button"
+              className="landing-hero-register"
               onClick={onNavigateToRegister}
               style={{
                 background: 'var(--primary)',
@@ -254,12 +253,12 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
                 transition: 'transform 0.2s ease'
               }}
             >
-              ابدأ تجربتك المجانية الآن (14 يوماً)
+              ابدأ تجربتك المجانية الآن (30 يوماً)
               <ArrowLeft size={20} />
             </button>
 
             <a
-              href="https://wa.me/218910000000?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D8%A3%D9%88%D8%AF%20%D8%A7%D9%84%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1%20%D8%B9%D9%86%20%D9%85%D9%86%D8%B8%D9%88%D9%85%D8%A9%20%D8%A7%D9%84%D9%85%D8%AD%D8%A7%D9%85%D8%A7%D8%A9"
+              href="https://wa.me/218911225020?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D8%A3%D9%88%D8%AF%20%D8%A7%D9%84%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1%20%D8%B9%D9%86%20%D9%85%D9%86%D8%B8%D9%88%D9%85%D8%A9%20%D8%A7%D9%84%D9%85%D8%AD%D8%A7%D9%85%D8%A7%D8%A9"
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -282,7 +281,7 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
 
           {/* Trust badges */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', flexWrap: 'wrap', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>✓ تجربة 14 يوماً بدون دفع</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>✓ تجربة 30 يوماً بدون دفع</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>✓ متوافقة مع القضاء الليبي</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>✓ سحابية + تطبيق سطح مكتب</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>✓ دعم فني وتدريب مجاني</span>
@@ -291,7 +290,7 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
       </section>
 
       {/* Features Grid */}
-      <section id="features" style={{ padding: '80px 24px', background: 'rgba(0,0,0,0.2)' }}>
+      <section id="features" className="landing-section-muted" style={{ padding: '80px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '56px' }}>
             <h2 style={{ fontSize: '2.2rem', fontWeight: '800', color: 'var(--text-main)', marginBottom: '16px' }}>
@@ -380,7 +379,7 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
                   style={{ width: '100%', padding: '12px' }}
                   onClick={onNavigateToRegister}
                 >
-                  {p.id === 'trial' ? 'ابدأ مجاناً 14 يوماً' : 'اشترك في هذه الباقة'}
+                  {p.id === 'trial' ? 'ابدأ مجاناً 30 يوماً' : 'اشترك في هذه الباقة'}
                 </Button>
               </div>
             ))}
@@ -389,7 +388,7 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
       </section>
 
       {/* Payment methods section */}
-      <section id="payments" style={{ padding: '60px 24px', background: 'rgba(0,0,0,0.2)' }}>
+      <section id="payments" className="landing-section-muted" style={{ padding: '60px 24px' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 'bold', marginBottom: '16px' }}>
             طرق السداد المعتمدة والميسرة في ليبيا 🏦
@@ -398,29 +397,23 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
             يمكنك تسديد الاشتراك بسهولة عبر أي وسيلة دفع تفضلها:
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🏛️</div>
-              <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>مصرف الجمهورية</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>تحويل فوري عبر تطبيق (أنا وياك)</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px' }}>
+            <div className="glass-card" style={{ padding: '24px' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>💳</div>
+              <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '6px' }}>وان باي (OnePay)</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>دفع إلكتروني سريع ومباشر عبر تطبيق OnePay</div>
             </div>
 
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>🏛️</div>
-              <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>المصرف التجاري الوطني</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>تحويل مباشر عبر (موبي كاش)</div>
+            <div className="glass-card" style={{ padding: '24px' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📱</div>
+              <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '6px' }}>إل واي باي (LY Pay)</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>دفع إلكتروني آمن وفوري عبر تطبيق LY Pay</div>
             </div>
 
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>📱</div>
-              <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>سداد (Sadad) / تداول</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>دفع إلكتروني مباشر عبر الهاتف</div>
-            </div>
-
-            <div className="glass-card" style={{ padding: '20px' }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>💵</div>
-              <div style={{ fontWeight: 'bold', marginBottom: '6px' }}>دفع نقدي (كاش)</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>استلام مباشر وإيصال رسمي معتمد</div>
+            <div className="glass-card" style={{ padding: '24px' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '8px' }}>💵</div>
+              <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '6px' }}>دفع نقدي (كاش)</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>استلام مباشر في مكتبنا أو لمندوب مع إيصال رسمي معتمد</div>
             </div>
           </div>
         </div>
@@ -484,7 +477,7 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
               boxShadow: '0 8px 25px rgba(212, 168, 83, 0.4)'
             }}
           >
-            سجّل مكتبك الآن (14 يوماً مجاناً) 🚀
+            سجّل مكتبك الآن (30 يوماً مجاناً) 🚀
           </button>
         </div>
       </section>
@@ -495,10 +488,10 @@ export default function Landing({ onNavigateToLogin, onNavigateToRegister }) {
           <div>
             جميع الحقوق محفوظة © {new Date().getFullYear()} منظومة المحامي الليبي
           </div>
-          <div style={{ display: 'flex', gap: '20px' }}>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <span>طرابلس، ليبيا</span>
-            <span>هاتف: 0910000000</span>
-            <span>دعم فني: contact@lawyer-system.ly</span>
+            <span>هاتف: 0911225020 - 0921225020</span>
+            <span>دعم فني: <a href="mailto:kasemgammo15@gmail.com" style={{ color: 'inherit', textDecoration: 'none' }}>kasemgammo15@gmail.com</a></span>
           </div>
         </div>
       </footer>

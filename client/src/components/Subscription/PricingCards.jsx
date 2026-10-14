@@ -8,7 +8,7 @@ export default function PricingCards({ currentPlan = 'trial', onSelectPlan }) {
       id: 'trial',
       name: 'الباقة التجريبية',
       price: 'مجاناً',
-      period: '14 يوم',
+      period: '30 يوم',
       icon: <Star size={24} />,
       color: 'var(--text-muted)',
       features: [
@@ -25,8 +25,8 @@ export default function PricingCards({ currentPlan = 'trial', onSelectPlan }) {
     {
       id: 'starter',
       name: 'المكتب الفردي',
-      price: '450 د.ل',
-      period: 'سنوياً (~50 د.ل/شهر)',
+      price: '2,000 د.ل',
+      period: 'سنوياً (يعادل 166.67 د.ل شهرياً)',
       icon: <Zap size={24} />,
       color: '#3b82f6',
       features: [
@@ -44,8 +44,8 @@ export default function PricingCards({ currentPlan = 'trial', onSelectPlan }) {
     {
       id: 'pro',
       name: 'المكتب المحترف',
-      price: '950 د.ل',
-      period: 'سنوياً (~100 د.ل/شهر)',
+      price: '4,000 د.ل',
+      period: 'سنوياً (يعادل 333.33 د.ل شهرياً)',
       icon: <Star size={24} />,
       color: '#d4a853',
       popular: true,
@@ -65,8 +65,8 @@ export default function PricingCards({ currentPlan = 'trial', onSelectPlan }) {
     {
       id: 'enterprise',
       name: 'الشركات والمؤسسات',
-      price: '1,800 د.ل',
-      period: 'سنوياً',
+      price: '5,000 د.ل',
+      period: 'سنوياً (يعادل 416.67 د.ل شهرياً)',
       icon: <Shield size={24} />,
       color: '#8b5cf6',
       features: [

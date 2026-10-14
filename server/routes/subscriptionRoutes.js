@@ -12,7 +12,7 @@ router.get('/plans', (req, res) => {
       id: 'trial',
       name: 'الباقة التجريبية',
       price: 0,
-      period: '14 يوم مجاناً',
+      period: '30 يوم مجاناً',
       currency: 'د.ل',
       description: 'لتجربة كافة مميزات المنظومة بدون أي التزام مالي',
       features: [
@@ -28,8 +28,8 @@ router.get('/plans', (req, res) => {
     {
       id: 'starter',
       name: 'المكتب الفردي',
-      price: 450,
-      monthlyEquivalent: 50,
+      price: 2000,
+      monthlyEquivalent: Number((2000 / 12).toFixed(2)),
       period: 'سنوياً',
       currency: 'د.ل',
       description: 'مثالية للمحامي المستقل أو المكتب الفردي الصغير',
@@ -47,8 +47,8 @@ router.get('/plans', (req, res) => {
     {
       id: 'pro',
       name: 'المكتب المحترف',
-      price: 950,
-      monthlyEquivalent: 100,
+      price: 4000,
+      monthlyEquivalent: Number((4000 / 12).toFixed(2)),
       period: 'سنوياً',
       currency: 'د.ل',
       description: 'الخيار الأكثر طلباً لمكاتب المحاماة النشطة والشراكات',
@@ -67,7 +67,8 @@ router.get('/plans', (req, res) => {
     {
       id: 'enterprise',
       name: 'الشركات والمؤسسات',
-      price: 1800,
+      price: 5000,
+      monthlyEquivalent: Number((5000 / 12).toFixed(2)),
       period: 'سنوياً',
       currency: 'د.ل',
       description: 'للمكاتب الكبرى والشركات القانونية متعددة الفروع',
@@ -83,36 +84,29 @@ router.get('/plans', (req, res) => {
     }
   ];
 
-  // Bank & Offline Payment Details for Libya
+  // Payment methods for Libya: OnePay, LY Pay, Cash
   const paymentInfo = {
     methods: [
       {
-        id: 'bank_transfer',
-        title: 'تحويل مصرفي مباشر',
-        details: [
-          { bank: 'مصرف الجمهورية', accountName: 'إدارة منظومة المحاماة', accountNumber: '018-XXXXXX', iban: 'LY0000180000000000000000' },
-          { bank: 'المصرف التجاري الوطني', accountName: 'إدارة منظومة المحاماة', accountNumber: '012-XXXXXX', iban: 'LY0000120000000000000000' },
-          { bank: 'مصرف الأمان', accountName: 'إدارة منظومة المحاماة', accountNumber: '025-XXXXXX', iban: 'LY0000250000000000000000' }
-        ]
+        id: 'onepay',
+        title: 'وان باي (OnePay)',
+        phone: '0911225020 / 0921225020',
+        note: 'دفع إلكتروني فوري ومباشر عبر تطبيق OnePay'
       },
       {
-        id: 'electronic',
-        title: 'الدفع الإلكتروني المحلي (سداد / موبي كاش)',
-        details: [
-          { service: 'خدمة سداد (Sadad)', phone: '091XXXXXXX' },
-          { service: 'خدمة موبي كاش (MobiCash)', phone: '092XXXXXXX' }
-        ]
+        id: 'ly_pay',
+        title: 'إل واي باي (LY Pay)',
+        phone: '0911225020 / 0921225020',
+        note: 'دفع إلكتروني آمن وسريع عبر تطبيق LY Pay'
       },
       {
         id: 'cash',
         title: 'الدفع نقداً (كاش) / مكتبنا',
-        details: [
-          { location: 'طرابلس / بنغازي / مصراتة', note: 'الدفع المباشر واستلام إيصال رسمي معتمد' }
-        ]
+        note: 'الدفع المباشر واستلام إيصال رسمي معتمد'
       }
     ],
-    whatsappSupport: '0910000000',
-    contactEmail: 'contact@lawyer-system.ly'
+    whatsappSupport: '0911225020 / 0921225020',
+    contactEmail: 'kasemgammo15@gmail.com'
   };
 
   res.json({ success: true, plans, paymentInfo });
