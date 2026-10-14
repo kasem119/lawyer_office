@@ -2,6 +2,27 @@ import cron from 'node-cron';
 import db from '../database/db.js';
 import { createNotification } from './notificationService.js';
 
+export const REMINDER_TIME_ZONE = 'Africa/Tripoli';
+export const REMINDER_SCHEDULE = '0 8,18 * * *';
+const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: REMINDER_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+const hourFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: REMINDER_TIME_ZONE, hour: '2-digit', hourCycle: 'h23' });
+const localDay = date => dayFormatter.format(date);
+const dayAfter = (day, count) => {
+  const date = new Date(`${day}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + count);
+  return date.toISOString().slice(0, 10);
+};
+function alreadyNotified(userId, entity, entityId, today, prefix) {
+  return db.prepare(`SELECT created_at FROM notifications WHERE user_id=?
+    AND related_entity_type=? AND related_entity_id=? AND title LIKE ?
+    AND substr(created_at,1,10) IN (?,?)`).all(userId, entity, entityId, `${prefix}%`, today, dayAfter(today, -1))
+    .some(row => {
+      const value = row.created_at.replace(' ', 'T');
+      const date = new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`);
+      return Number.isFinite(date.getTime()) && localDay(date) === today;
+    });
+}
+
 /**
  * Returns a list of user IDs who should be notified about an event:
  * - The event creator
@@ -45,16 +66,13 @@ export function getEventRecipients(eventId) {
  * 1. Court sessions & events today and tomorrow
  * 2. Tasks due today, tomorrow, and overdue
  */
-export function checkRemindersNow() {
+export function checkRemindersNow(now = new Date()) {
   try {
-    const addDays = (days) => {
-      const d = new Date();
-      d.setDate(d.getDate() + days);
-      return d.toISOString().split('T')[0];
-    };
-
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
+    const hour = Number(hourFormatter.format(now));
+    if (hour < 8) return; // Never dispatch scheduled reminders overnight.
+    const prefix = hour >= 18 ? '🌙 تذكير مسائي: ' : '☀️ تذكير صباحي: ';
+    const today = localDay(now);
+    const addDays = days => dayAfter(today, days);
     const tomorrow = addDays(1);
     const in2Days = addDays(2);
     const in3Days = addDays(3);
@@ -73,7 +91,7 @@ export function checkRemindersNow() {
     `).all(today, tomorrow, in2Days, in3Days, in1Week, in2Weeks);
 
     upcomingEvents.forEach(event => {
-      const isCourt = event.type === 'court' || (event.title && event.title.includes('جلسة'));
+      const isCourt = event.type === 'court_date' || event.type === 'court' || (event.title && event.title.includes('جلسة'));
 
       const timeStr = event.time ? ` الساعة ${event.time}` : '';
       const caseStr = event.case_title ? ` في قضية "${event.case_title}"` : '';
@@ -119,19 +137,17 @@ export function checkRemindersNow() {
       // إرسال الإشعار لجميع المحامين المعنيين بالجلسة والقضية
       const recipients = getEventRecipients(event.id);
       recipients.forEach(userId => {
-        const existing = db.prepare(`
-          SELECT id FROM notifications 
-          WHERE user_id = ? AND related_entity_type = 'event' AND related_entity_id = ? AND DATE(created_at) = ?
-        `).get(userId, event.id, today);
+        const existing = alreadyNotified(userId, 'event', event.id, today, prefix);
 
         if (!existing) {
           createNotification({
             userId,
-            title,
+            title: prefix + title,
             message,
             type: notifType,
             relatedEntityType: 'event',
-            relatedEntityId: event.id
+            relatedEntityId: event.id,
+            createdAt: now.toISOString()
           });
         }
       });
@@ -156,10 +172,7 @@ export function checkRemindersNow() {
 
       const notifType = isOverdue ? 'warning' : isDueToday ? 'info' : 'info';
 
-      const existing = db.prepare(`
-        SELECT id FROM notifications 
-        WHERE user_id = ? AND related_entity_type = 'task' AND related_entity_id = ? AND DATE(created_at) = ?
-      `).get(task.assigned_to, task.id, today);
+      const existing = alreadyNotified(task.assigned_to, 'task', task.id, today, prefix);
 
       if (!existing) {
         let title = '';
@@ -180,11 +193,12 @@ export function checkRemindersNow() {
         if (title && message) {
           createNotification({
             userId: task.assigned_to,
-            title,
+            title: prefix + title,
             message,
             type: notifType,
             relatedEntityType: 'task',
-            relatedEntityId: task.id
+            relatedEntityId: task.id,
+            createdAt: now.toISOString()
           });
         }
       }
@@ -196,15 +210,6 @@ export function checkRemindersNow() {
 }
 
 export function initReminderCron() {
-  // فحص كل 30 دقيقة على مدار الساعة لضمان عدم تفويت أي جلسة أو موعد
-  cron.schedule('*/30 * * * *', () => {
-    checkRemindersNow();
-  });
-
-  // فحص صباحي مخصص عند الساعة 07:30 صباحاً لتذكير المحامين بجلسات اليوم
-  cron.schedule('30 7 * * *', () => {
-    checkRemindersNow();
-  });
-
-  console.log('[Reminder Cron] ✅ تم تفعيل نظام التذكيرات الذكية للمحاكم والمهام');
+  if (process.env.NODE_ENV === 'test') return;
+  return cron.schedule(REMINDER_SCHEDULE, () => checkRemindersNow(), { timezone: REMINDER_TIME_ZONE });
 }

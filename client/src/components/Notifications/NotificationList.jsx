@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCheck, BellOff, X } from 'lucide-react';
 import { useNotifications } from '../../contexts/NotificationContext';
 import EmptyState from '../Shared/EmptyState';
+import { formatLibyaTime } from '../../utils/dateTime';
 
 export default function NotificationList({ onClose }) {
   const { notifications, markAsRead, markAllAsRead, deviceSupport, deviceEnabled, deviceBusy,
@@ -143,7 +144,7 @@ export default function NotificationList({ onClose }) {
                 {n.message}
               </div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '4px' }}>
-                {new Date(n.created_at).toLocaleTimeString('ar-LY', { hour: '2-digit', minute: '2-digit' })}
+                {formatLibyaTime(n.created_at)}
               </div>
             </div>
           ))}

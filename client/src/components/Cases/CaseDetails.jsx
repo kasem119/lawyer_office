@@ -219,7 +219,7 @@ export default function CaseDetails({ caseId, onBack }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="case-details" style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
       {/* Header Back & Actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <button
@@ -241,9 +241,9 @@ export default function CaseDetails({ caseId, onBack }) {
       </div>
 
       {/* Case Overview Banner Card */}
-      <div className="glass-card" style={{ padding: '24px', borderRight: '6px solid var(--primary)' }}>
+      <div className="glass-card case-overview" style={{ padding: '24px', borderRight: '6px solid var(--primary)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '16px' }}>
-          <div>
+          <div className="case-overview-info">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <h1 style={{ fontSize: '1.4rem', fontWeight: '800' }}>{caseItem.title}</h1>
               <CaseStatusBadge status={caseItem.status} />
@@ -271,7 +271,7 @@ export default function CaseDetails({ caseId, onBack }) {
           </div>
 
           {/* Quick Management Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="case-management-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             {/* Status Dropdown */}
             <select
               className="form-select"
@@ -322,7 +322,7 @@ export default function CaseDetails({ caseId, onBack }) {
       </div>
 
       {/* Tabs Navigation */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', whiteSpace: 'nowrap' }} className="hide-scrollbar">
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '8px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', whiteSpace: 'nowrap', minWidth: 0, maxWidth: '100%' }} className="hide-scrollbar">
         <button
           onClick={() => setActiveTab('documents')}
           style={{
@@ -452,8 +452,8 @@ export default function CaseDetails({ caseId, onBack }) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {documents.map((doc) => (
-                <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: 'var(--bg-item)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="case-document" key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', background: 'var(--bg-item)', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                  <div className="case-document-info" style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                     <FileText size={24} color="var(--primary)" />
                     <div>
                       <div style={{ fontWeight: '700', fontSize: '0.95rem' }}>{doc.original_name}</div>
@@ -462,7 +462,7 @@ export default function CaseDetails({ caseId, onBack }) {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div className="case-document-actions" style={{ display: 'flex', gap: '8px' }}>
                     <Button variant="secondary" icon={Download} onClick={() => handleDownloadDoc(doc.id, doc.original_name)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>تحميل</Button>
                     <Button variant="secondary" icon={History} onClick={() => setSelectedDocForVersions(doc)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>الإصدارات</Button>
                     <Button variant="secondary" icon={Share2} onClick={() => setSelectedDocForShare(doc)} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>مشاركة</Button>

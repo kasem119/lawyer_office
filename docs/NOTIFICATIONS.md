@@ -53,3 +53,20 @@ actual delivery with the test button on each target device after deploying/rebui
 - Security review: staff ownership enforced, internal push destinations rejected,
   private VAPID key excluded from API responses, inactive accounts excluded from delivery.
 - Coverage percentage and physical-device banner delivery: not measured.
+
+## Libya time and daily reminder schedule — 2026-10-14
+
+Notification times display in `Africa/Tripoli`. Legacy SQLite timestamps without
+an offset are interpreted as UTC; ISO timestamps retain their declared offset.
+New notifications store an explicit UTC ISO timestamp shared by the database and
+WebSocket message.
+
+Appointment and task reminders run at **08:00 and 18:00 Libya time**, using
+`0 8,18 * * *` with an explicit cron timezone. The midnight/half-hour poll is
+removed. Each user/entity receives at most one morning and one evening reminder
+per Libya calendar day, including across process restarts. Activity notifications
+such as shared documents remain immediate. Existing midnight notifications are
+retained; this change affects future dispatches.
+
+Run `node server/tests/reminders.mjs` for UTC/ISO parsing, different host timezones,
+overnight suppression, morning/evening deduplication, and Libya day rollover.

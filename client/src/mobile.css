@@ -87,6 +87,17 @@
   .case-page-actions { width: 100%; }
   .case-page-actions > button { flex: 1; }
   .case-page-actions > button:last-child { order: -1; flex-basis: 100%; }
+  .case-details, .case-details > *, .case-overview-info { min-width: 0; max-width: 100%; }
+  .case-overview-info { flex: 1 1 100%; overflow-wrap: anywhere; }
+  .case-overview { padding: 16px !important; }
+  .case-management-actions { width: 100%; }
+  .case-management-actions select { width: 100%; min-width: 0; }
+  .case-management-actions button { flex: 1 1 auto; }
+  .case-document { flex-direction: column; align-items: stretch !important; gap: 14px; }
+  .case-document-info > svg { flex-shrink: 0; }
+  .case-document-info > div { min-width: 0; overflow-wrap: anywhere; }
+  .case-document-actions { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); width: 100%; }
+  .case-document-actions button { min-width: 0; padding: 6px 4px !important; font-size: .75rem !important; gap: 4px; justify-content: center; }
   .datatable-mobile-card { padding: 16px; margin: 0; gap: 14px; box-shadow: none; }
   .datatable-mobile-card-header { align-items: flex-start; gap: 10px; padding-bottom: 12px; }
   .datatable-mobile-card-title { color: var(--text-main); line-height: 1.7; overflow-wrap: anywhere; font-size: 1rem; }

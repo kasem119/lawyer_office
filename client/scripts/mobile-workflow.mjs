@@ -92,6 +92,27 @@ try {
   assert.equal((await uploadResponse).status(), 201);
   assert.equal(db.prepare('SELECT count(*) AS total FROM documents WHERE case_id=?').get(caseItem.id).total, 1);
   results.push('Real multipart PDF upload from mobile dialog persisted');
+  await page.waitForFunction(() => !document.querySelector('[role="dialog"]'));
+  db.prepare('UPDATE cases SET opponent_name=?, opponent_id_number=?, opponent_phone=? WHERE id=?')
+    .run('اسم طرف خصم طويل لاختبار شاشة الهاتف'.repeat(3), '123456789'.repeat(8), '0910000000', caseItem.id);
+  db.prepare('UPDATE documents SET original_name=? WHERE case_id=?').run('IMG_7907_اسم_مستند_طويل_'.repeat(7) + '.jpeg', caseItem.id);
+  await clickText('القضايا', '.mobile-bottom-nav button');
+  await page.waitForSelector('button[title="عرض ملف وتفاصيل القضية"]');
+  await page.click('button[title="عرض ملف وتفاصيل القضية"]');
+  await page.waitForSelector('.case-document-actions');
+  await layout('case-details');
+  for (const width of [320,375,390,768,1440]) {
+    await page.setViewport({ width, height: 900, isMobile: true, hasTouch: true });
+    const buttons = await page.evaluate(() => [...document.querySelectorAll('.case-document-actions button')].map(el => {
+      const rect = el.getBoundingClientRect(); return { text: el.textContent, left: rect.left, right: rect.right, height: rect.height, scroll: el.scrollWidth, width: el.clientWidth };
+    }));
+    assert.equal(buttons.length, 3);
+    assert.ok(buttons.every(b => b.left >= 0 && b.right <= width + 1 && b.scroll <= b.width + 1), JSON.stringify({ width, buttons }));
+  }
+  results.push('Case details long filename/opponent wrap; download/version/share actions fit all five widths');
+  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+  await page.evaluate(() => document.querySelector('.case-document').scrollIntoView({ block: 'center' }));
+  await page.screenshot({ path: path.join(output, 'case-document-actions-390.png') });
   const token = await page.evaluate(() => localStorage.getItem('access_token'));
   const pdf = await fetch(`${origin}/api/exports/cases/${caseItem.id}?format=pdf`, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(pdf.status, 200);

@@ -2,13 +2,13 @@ import db from '../database/db.js';
 import { sendToUser } from './websocketService.js';
 import { sendPushToUser } from './pushService.js';
 
-export function createNotification({ userId, title, message, type = 'info', relatedEntityType = null, relatedEntityId = null }) {
+export function createNotification({ userId, title, message, type = 'info', relatedEntityType = null, relatedEntityId = null, createdAt = new Date().toISOString() }) {
   try {
     const stmt = db.prepare(`
-      INSERT INTO notifications (user_id, title, message, type, related_entity_type, related_entity_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO notifications (user_id, title, message, type, related_entity_type, related_entity_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    const res = stmt.run(userId, title, message, type, relatedEntityType, relatedEntityId);
+    const res = stmt.run(userId, title, message, type, relatedEntityType, relatedEntityId, createdAt);
     
     // Dispatch real-time WebSocket event to the user
     sendToUser(userId, 'NEW_NOTIFICATION', {
@@ -20,7 +20,7 @@ export function createNotification({ userId, title, message, type = 'info', rela
       related_entity_type: relatedEntityType,
       related_entity_id: relatedEntityId,
       is_read: 0,
-      created_at: new Date().toISOString()
+      created_at: createdAt
     });
 
     void sendPushToUser(userId, { id: Number(res.lastInsertRowid), title, message })
