@@ -14,3 +14,14 @@ Production readiness checks include:
 Use `deploy/deploy_remaining_fixes.py <assistant|backups> preflight`, then `deploy` only after preflight completes successfully. Private-copy validation uses `deploy/stage_backup_validation.py`; production verification uses `deploy/verify_remaining_fixes.py`. Connection credentials stay in Windows Credential Manager, with pinned SSH host identity. Run metadata is stored under ignored `artifacts/remaining-release/`; it contains aggregate verification results, not office contents or credentials. Private validation copies are removed after checks.
 
 Full office recovery still requires controlled maintenance. A safe archive must satisfy the schema and relational integrity checks. Existing historical records with missing parent links require a separate reviewed repair; this release does not delete or alter them.
+
+## Separate historical cleanup
+
+After the user approved repair or deletion, `deploy/repair_orphan_records.py` audited
+the missing references and performed a fingerprinted one-off transaction. Optional
+expense links to deleted cases were cleared while preserving all expense contents
+and amounts. Unreferenced child records belonging to deleted parents were removed.
+The plan was proven against an in-memory copy before applying it, with an atomic
+SQLite backup, checks that unrelated tables remained unchanged, and post-startup
+integrity/foreign-key verification. Uploaded files were not removed. Runtime audit
+plans and receipts remain under Git-ignored `artifacts/orphan-repair/`.
