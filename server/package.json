@@ -8,10 +8,18 @@
     "start": "node index.js",
     "dev": "node --watch index.js",
     "seed": "node database/seed.js",
-    "tray": "electron trayApp.js",
     "service:install": "node windowsService.js install",
     "service:uninstall": "node windowsService.js uninstall",
-    "test": "npx cross-env SEED_DEMO_DATA=true node tests/run_tests.js"
+    "test": "npx cross-env SEED_DEMO_DATA=true node tests/run_tests.js",
+    "test:improvements": "node tests/improvements.mjs",
+    "test:permissions": "node tests/permissions.mjs",
+    "test:legal-assistant": "node tests/legal-assistant.mjs",
+    "test:security-review": "node tests/security-review.mjs",
+    "test:review-regressions": "node tests/review-regressions.mjs",
+    "test:notifications": "node tests/notifications.mjs",
+    "test:backup-restore": "node tests/backup-restore.mjs",
+    "test:domain": "node --test tests/domain/*.test.mjs",
+    "test:trial-access": "node tests/trial-access.mjs"
   },
   "jest": {
     "testEnvironment": "node",
@@ -23,6 +31,7 @@
     ]
   },
   "dependencies": {
+    "archiver": "5.3.2",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.8.0",
     "cors": "^2.8.5",
@@ -35,15 +44,19 @@
     "node-windows": "^1.0.0-beta.8",
     "nodemailer": "^10.0.9",
     "puppeteer": "^25.10.0",
-    "sql.js": "^1.14.1"
+    "sql.js": "^1.14.1",
+    "web-push": "^3.6.7",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.1",
+    "@babel/core": "7.29.0",
     "@babel/plugin-syntax-import-meta": "^7.10.4",
-    "@babel/preset-env": "^8.0.2",
-    "babel-jest": "^30.4.1",
-    "electron": "^44.3.0",
+    "@babel/preset-env": "7.29.0",
+    "babel-jest": "29.7.0",
     "jest": "^29.0.0",
     "supertest": "^6.3.0"
+  },
+  "engines": {
+    "node": ">=22.23.0"
   }
 }

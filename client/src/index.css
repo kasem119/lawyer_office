@@ -585,6 +585,62 @@ textarea:focus-visible {
   transition: transform 0.3s ease;
 }
 
+/* The landing header stays dark in both themes, so its text must not inherit
+   the muted colors intended for the page body. */
+.landing-header {
+  background: rgba(15, 23, 42, 0.97);
+  border-bottom: 1px solid rgba(212, 168, 83, 0.3);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.landing-brand-title {
+  color: #f2c76e;
+}
+
+.landing-brand-subtitle {
+  color: #cbd5e1;
+}
+
+.landing-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.92rem;
+}
+
+.landing-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.landing-nav-link:hover,
+.landing-nav-link:focus-visible {
+  color: #f5cf7a;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.landing-nav-link:focus-visible {
+  outline: 2px solid #f5cf7a;
+  outline-offset: 2px;
+}
+
+.landing-section-muted {
+  background: #111b2e;
+}
+
+[data-theme="light"] .landing-section-muted {
+  background: #f1f5f9;
+}
+
 @media (max-width: 768px) {
   html {
     font-size: 14px;

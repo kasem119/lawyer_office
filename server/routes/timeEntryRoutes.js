@@ -1,6 +1,7 @@
 import express from 'express';
 import db from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { canAccessCase } from '../middleware/permissions.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -48,6 +49,7 @@ router.post('/', (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     const { case_id, description, duration_minutes, date, billable } = req.body;
+    if (!canAccessCase(req.user, case_id)) return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
     
     const stmt = db.prepare(`
       INSERT INTO time_entries (case_id, user_id, description, duration_minutes, date, billable, tenant_id)
@@ -77,6 +79,8 @@ router.put('/:id', (req, res, next) => {
     if (entry.user_id !== req.user.id && req.user.role !== 'admin' && req.user.role !== 'super_admin') {
       return res.status(403).json({ success: false, message: 'غير مصرح لك' });
     }
+
+    if (!canAccessCase(req.user, case_id)) return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
     
     const stmt = db.prepare(`
       UPDATE time_entries SET case_id = ?, description = ?, duration_minutes = ?, date = ?, billable = ?
@@ -119,6 +123,7 @@ router.get('/summary/:caseId', (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     const caseId = req.params.caseId;
+    if (!canAccessCase(req.user, caseId)) return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
     
     const stmt = db.prepare(`
       SELECT 

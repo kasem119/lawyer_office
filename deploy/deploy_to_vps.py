@@ -8,11 +8,11 @@ import sys
 import time
 import paramiko
 
-HOST = "102.203.202.104"
-PORT = 22
-USER = "root"
-PASSWORD = "GTRdCg99Y9o3"
-
+HOST = os.environ.get("DEPLOY_HOST", "102.203.202.104")
+PORT = int(os.environ.get("DEPLOY_PORT", "22"))
+USER = os.environ["DEPLOY_USER"]
+KEY_FILE = os.environ["DEPLOY_SSH_KEY"]
+KNOWN_HOSTS = os.environ.get("DEPLOY_KNOWN_HOSTS", os.path.join(os.path.dirname(__file__), ".ssh-runtime", "known_hosts"))
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ZIP_FILE = os.path.join(CURRENT_DIR, "lawyer_office.zip")
 SETUP_SH = os.path.join(CURRENT_DIR, "setup-vps.sh")
@@ -38,10 +38,13 @@ def main():
 
     print("\n[1/3] جاري الاتصال بالسيرفر عبر SSH...")
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.load_host_keys(KNOWN_HOSTS)
+
+    ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+
 
     try:
-        ssh.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30, look_for_keys=False, allow_agent=False)
+        ssh.connect(HOST, port=PORT, username=USER, key_filename=KEY_FILE, passphrase=os.environ.get("DEPLOY_SSH_KEY_PASSPHRASE"), timeout=30, look_for_keys=False, allow_agent=False)
         print("✅ تم الاتصال بالسيرفر بنجاح!")
     except Exception as e:
         print(f"❌ فشل الاتصال بالسيرفر: {e}")

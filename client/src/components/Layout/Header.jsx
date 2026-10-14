@@ -8,7 +8,7 @@ import GlobalSearch from '../Shared/GlobalSearch';
 import UserProfileModal from '../Auth/UserProfileModal';
 import AIAssistantModal from '../AI/AIAssistantModal';
 
-export default function Header({ onChangeServer, onToggleMobileSidebar, onNavigate }) {
+export default function Header({ onChangeServer, onToggleMobileSidebar, onNavigate, mobileMenuOpen }) {
   const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const { theme, resolvedTheme, cycleTheme, setTheme } = useTheme();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -50,7 +50,7 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
       }}
     >
       {/* Right side: Mobile Menu Button & Brand / Server info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+      <div className="header-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
         {onToggleMobileSidebar && (
           <button
             type="button"
@@ -70,16 +70,19 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
               flexShrink: 0
             }}
             title="القائمة الرئيسية"
+            aria-label="القائمة الرئيسية"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation"
           >
             <Menu size={20} />
           </button>
         )}
 
         <div className="hide-on-desktop" style={{ fontWeight: '800', color: 'var(--primary)', fontSize: '0.98rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          منظومة المحاماة
+          مكتبي
         </div>
 
-        <div
+        {onChangeServer && <div
           className="hide-on-mobile"
           style={{
             display: 'flex',
@@ -124,16 +127,16 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
           >
             تغيير
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Center: Global Search (Desktop inline / Mobile trigger) */}
-      <div style={{ flex: 1, maxWidth: '420px', display: 'flex', justifyContent: 'center' }}>
+      <div className="header-search" style={{ flex: 1, maxWidth: '420px', display: 'flex', justifyContent: 'center' }}>
         {!isSuperAdmin && <GlobalSearch onNavigate={onNavigate} />}
       </div>
 
       {/* Left side: Theme Switcher, Notifications & User Info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+      <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         {/* Theme Cycle Button (Desktop) */}
         <button
           type="button"
@@ -212,7 +215,9 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
             gap: '8px'
           }}
         >
-          <div
+          <button
+            type="button"
+            className="profile-trigger"
             onClick={() => setIsProfileOpen(true)}
             title="الملف الشخصي وتغيير كلمة المرور"
             style={{
@@ -222,7 +227,8 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
               cursor: 'pointer',
               padding: '4px',
               borderRadius: 'var(--radius-md)',
-              transition: 'background 0.2s ease'
+              transition: 'background 0.2s ease',
+              background: 'transparent', border: 'none', font: 'inherit', color: 'inherit'
             }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--primary-light)'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -268,7 +274,7 @@ export default function Header({ onChangeServer, onToggleMobileSidebar, onNaviga
                 </span>
               </div>
             </div>
-          </div>
+          </button>
 
           <button
             type="button"

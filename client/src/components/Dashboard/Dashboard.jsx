@@ -70,7 +70,7 @@ export default function Dashboard({ setActiveTab }) {
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="dashboard-page" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header & Quick Action Hub */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         <div>
@@ -81,16 +81,16 @@ export default function Dashboard({ setActiveTab }) {
         {/* Quick Action Grid */}
         <div className="quick-actions-bar">
           <button type="button" onClick={() => setActiveTab('cases')} className="quick-action-pill primary">
-            <Plus size={16} />
-            <span>قضية جديدة</span>
+            <Briefcase size={18} />
+            <span>القضايا</span>
           </button>
           <button type="button" onClick={() => setActiveTab('clients')} className="quick-action-pill">
-            <Plus size={16} />
-            <span>عميل جديد</span>
+            <Users size={18} />
+            <span>الموكلون</span>
           </button>
           <button type="button" onClick={() => setActiveTab('calendar')} className="quick-action-pill">
             <CalendarIcon size={16} />
-            <span>موعد جلسة</span>
+            <span>المواعيد</span>
           </button>
           <button type="button" onClick={() => setActiveTab('finance')} className="quick-action-pill">
             <Receipt size={16} />
@@ -147,15 +147,17 @@ export default function Dashboard({ setActiveTab }) {
       </div>
 
       {/* Interactive Charts: Case Breakdown, Task Progress, Collection Rates */}
+      <div className="dashboard-charts">
       <DashboardCharts 
         cases={allCases}
         tasks={allTasks}
         invoices={allInvoices}
         setActiveTab={setActiveTab}
       />
+      </div>
 
       {/* Grid: Recent Cases & Pending Tasks */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
+      <div className="dashboard-recent" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: '20px' }}>
         {/* Recent Cases */}
         <div className="glass-card" style={{ padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>

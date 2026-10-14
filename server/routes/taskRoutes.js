@@ -3,7 +3,7 @@ import db from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { createNotification } from '../services/notificationService.js';
 import { validateTask } from '../middleware/validator.js';
-import { canChangeTaskStatus } from '../middleware/permissions.js';
+import { canChangeTaskStatus, canAccessCase, isOfficeStaff } from '../middleware/permissions.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -50,6 +50,13 @@ router.post('/', validateTask, (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     const { title, description, priority = 'medium', due_date, case_id, assigned_to } = req.body;
+
+    if (case_id != null && !canAccessCase(req.user, case_id)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
+    }
+    if (!isOfficeStaff(req.user, assigned_to)) {
+      return res.status(400).json({ message: 'المحامي المكلف يجب أن يكون حسابًا مفعّلًا في هذا المكتب' });
+    }
 
     const stmt = db.prepare(`
       INSERT INTO tasks (title, description, priority, due_date, case_id, assigned_to, created_by, tenant_id)
@@ -122,6 +129,13 @@ router.put('/:id', validateTask, (req, res, next) => {
       return res.status(403).json({ success: false, message: 'ليس لديك صلاحية تعديل هذه المهمة' });
     }
 
+    if (case_id != null && !canAccessCase(req.user, case_id)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
+    }
+    if (!isOfficeStaff(req.user, assigned_to)) {
+      return res.status(400).json({ message: 'المحامي المكلف يجب أن يكون حسابًا مفعّلًا في هذا المكتب' });
+    }
+
     db.prepare(`
       UPDATE tasks
       SET title = ?, description = ?, priority = ?, due_date = ?, case_id = ?, assigned_to = ?
@@ -192,6 +206,10 @@ router.post('/:id/remind', (req, res, next) => {
 
     if (!task) {
       return res.status(404).json({ success: false, message: 'المهمة غير موجودة' });
+    }
+
+    if (!canChangeTaskStatus(req.user, task)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه المهمة' });
     }
 
     if (task.status === 'done') {

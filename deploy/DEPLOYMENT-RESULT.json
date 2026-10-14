@@ -1,0 +1,22 @@
+{
+  "host": "102.203.202.104",
+  "backup": "/opt/lawyer_office/deployment-backups/improvements-20261009-154442",
+  "files": [
+    "server/routes/caseRoutes.js",
+    "server/services/caseStatusService.js",
+    "client/dist/favicon.svg",
+    "client/dist/index.html",
+    "client/dist/manifest.json",
+    "client/dist/sw.js",
+    "client/dist/assets/index-6CNaAE6O.css",
+    "client/dist/assets/index-BdApE0ML.js",
+    "client/dist/icons/apple-touch-icon.png",
+    "client/dist/icons/icon-192.png",
+    "client/dist/icons/icon-512.png",
+    "client/dist/icons/icon-maskable-192.png",
+    "client/dist/icons/icon-maskable-512.png"
+  ],
+  "health": "ok",
+  "public_health": "ok",
+  "verified_at_utc": "20261009-154442"
+}

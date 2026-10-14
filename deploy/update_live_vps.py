@@ -13,11 +13,11 @@ import time
 import paramiko
 import bcrypt
 
-HOST = "102.203.202.104"
-PORT = 22
-USER = "root"
-PASSWORD = "GTRdCg99Y9o3"
-
+HOST = os.environ.get("DEPLOY_HOST", "102.203.202.104")
+PORT = int(os.environ.get("DEPLOY_PORT", "22"))
+USER = os.environ.get("DEPLOY_USER", "root")
+PASSWORD = os.environ.get("DEPLOY_PASSWORD", "GTRdCg99Y9o3")
+KEY_FILE = os.environ.get("DEPLOY_SSH_KEY")
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ZIP_FILE = os.path.join(CURRENT_DIR, "lawyer_office.zip")
 
@@ -39,14 +39,17 @@ def main():
         sys.exit(1)
 
     # Generate super_admin password hash
-    super_pw = b"Owner#Libya2026!"
+    super_pw = os.environ.get("SUPER_ADMIN_PASSWORD", "Owner#Libya2026!").encode("utf-8")
     salt = bcrypt.gensalt(10)
     super_hash = bcrypt.hashpw(super_pw, salt).decode('utf-8')
 
     print("\n[1/5] جاري الاتصال بالسيرفر عبر SSH...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30, look_for_keys=False, allow_agent=False)
+    if KEY_FILE:
+        ssh.connect(HOST, port=PORT, username=USER, key_filename=KEY_FILE, passphrase=os.environ.get("DEPLOY_SSH_KEY_PASSPHRASE"), timeout=30, look_for_keys=False, allow_agent=False)
+    else:
+        ssh.connect(HOST, port=PORT, username=USER, password=PASSWORD, timeout=30, look_for_keys=False, allow_agent=False)
     print("✅ تم الاتصال بنجاح!")
 
     print("\n[2/5] جاري رفع حزمة الكود المحدثة وإعدادات Nginx...")
@@ -74,8 +77,9 @@ def main():
         "cd /opt/lawyer_office/server && node -e \"import('./database/db.js').then(() => { console.log('DB MIGRATIONS COMPLETED'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
         # Ensure office admin is strictly 'admin' role of tenant 1
         "sqlite3 /opt/lawyer_office/server/database/lawyer_office.db \"UPDATE users SET role = 'admin', tenant_id = 1 WHERE email = 'admin@lawyer.com';\"",
+        "sqlite3 /opt/lawyer_office/server/database/lawyer_office.db \"UPDATE tenants SET phone = '0911225020 / 0921225020' WHERE email = 'kasemgammo15@gmail.com' OR id = 1; UPDATE users SET phone = '0911225020 / 0921225020' WHERE email = 'kasemgammo15@gmail.com';\"",
         # Ensure owner is super_admin
-        f"sqlite3 /opt/lawyer_office/server/database/lawyer_office.db \"INSERT OR IGNORE INTO users (name, email, password_hash, role, phone, is_active) VALUES ('مالك المنظومة (SaaS)', 'owner@lawyer.com', '{super_hash}', 'super_admin', '0910000000', 1);\"",
+        f"sqlite3 /opt/lawyer_office/server/database/lawyer_office.db \"INSERT OR IGNORE INTO users (name, email, password_hash, role, phone, is_active) VALUES ('مالك المنظومة (SaaS)', 'owner@lawyer.com', '{super_hash}', 'super_admin', '0911225020', 1);\"",
         f"sqlite3 /opt/lawyer_office/server/database/lawyer_office.db \"UPDATE users SET role = 'super_admin' WHERE email = 'owner@lawyer.com';\"",
         # Fix permissions
         "chown -R lawyer:lawyer /opt/lawyer_office",

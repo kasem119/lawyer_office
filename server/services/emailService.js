@@ -118,7 +118,7 @@ export async function sendInvoiceEmail({ invoice, client, items }) {
 
   try {
     const info = await mailer.sendMail({
-      from: process.env.EMAIL_FROM || '"مكتب المحاماة" <office@lawyer-system.local>',
+      from: process.env.EMAIL_FROM || '"مكتب المحاماة" <kasemgammo15@gmail.com>',
       to: recipientEmail,
       subject: `فاتورة مطالبة أتعاب رقم ${invoice.invoice_number} - مكتب المحاماة`,
       html

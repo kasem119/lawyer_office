@@ -1,0 +1,42 @@
+{
+  "backup": "/opt/lawyer_office/deployment-backups/permissions-20261009-212806",
+  "files": [
+    "server/middleware/auth.js",
+    "server/middleware/permissions.js",
+    "server/routes/activityRoutes.js",
+    "server/routes/backupRoutes.js",
+    "server/routes/caseRoutes.js",
+    "server/routes/clientRoutes.js",
+    "server/routes/documentRoutes.js",
+    "server/routes/eventRoutes.js",
+    "server/routes/expenseRoutes.js",
+    "server/routes/exportRoutes.js",
+    "server/routes/invoiceRoutes.js",
+    "server/routes/reportRoutes.js",
+    "server/routes/searchRoutes.js",
+    "server/routes/taskRoutes.js",
+    "server/routes/timeEntryRoutes.js",
+    "server/services/caseStatusService.js"
+  ],
+  "health": "ok",
+  "public_health": "ok",
+  "verified_at_utc": "20261009-212806",
+  "sha256": {
+    "server/middleware/auth.js": "72e8dc2cb21d86d16005dc1229cd4365b1bfbb931e20cb0b420449cb58828417",
+    "server/middleware/permissions.js": "0b2e7f9f8794419e5d1eebaf0483073a1e48e3517bad6b00a346de20b2deea21",
+    "server/routes/activityRoutes.js": "84d588440fa616ba72133f56e4a872eb97eaa3d665afcbd492c8dc8a6cf14553",
+    "server/routes/backupRoutes.js": "a172d82c9107f591f2a84b0e5c8d9dcd5c0655965a1fffcf2d875e378ef569c8",
+    "server/routes/caseRoutes.js": "fe694d92f4b1cd19c4ce1b698a26a9994c3207bf2b2a64a92a15bf9b63b143f7",
+    "server/routes/clientRoutes.js": "7e06145b36c53d2bf41065c95f4873e588c43965a57c6d589f96ab118703146a",
+    "server/routes/documentRoutes.js": "12935428fb07de4e0812909cabde5fa4026760092d7255fc5f0f8818793a234e",
+    "server/routes/eventRoutes.js": "e4ef4f49894acc0ec84cd6691cf199860f704edf8516dec75d30c61c6bc35d97",
+    "server/routes/expenseRoutes.js": "9b40597edf541c31d58b7378dfc24d2947589c083e06b419329691be2f5b0a92",
+    "server/routes/exportRoutes.js": "d531b200bc7db2c45dfd4c6a3c39c5b2e483ae93ba197839317258c57624a9f2",
+    "server/routes/invoiceRoutes.js": "6a9df84fb1751b8f245e67240f4642991b0a46bc28174cf4d1603fd476dce73c",
+    "server/routes/reportRoutes.js": "5b4220b637dc11c0c4589099f1fdf929d596aef4f395298d850736878061d2df",
+    "server/routes/searchRoutes.js": "b4f20fad80e9aec5afeecde76d32c6734df511ee145be13539d77510f2422691",
+    "server/routes/taskRoutes.js": "8d4f9b409fa8ecbf6a4d169b4967e5951290a1160d69640120f25cf536e4859b",
+    "server/routes/timeEntryRoutes.js": "4f6841df2d508551f5338d094bc62a1428912ddc73073005621457cb1bb56edc",
+    "server/services/caseStatusService.js": "03dd018963821080e42080ce696dfa04f14148da5ec5f795b00fbe2b89fcc680"
+  }
+}

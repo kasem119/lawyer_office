@@ -34,3 +34,11 @@ builder-debug.yml
 *.log
 .DS_Store
 Thumbs.db
+
+# Local diagnostics and generated Python bytecode
+/artifacts/
+__pycache__/
+*.py[cod]
+
+# Legal corpus, generated index and original PDFs are deployment data.
+/services/legal-retrieval/data/

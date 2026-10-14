@@ -39,7 +39,16 @@ const upload = multer({
   }
 });
 
-function requireDocumentAccess(req, res, documentId, { manage = false } = {}) {
+function cleanRejectedUpload(req, res, next) {
+  // Multer writes before the handler can validate the selected case. Remove
+  // that file on every rejected/failed request, including missing case IDs.
+  res.once('finish', () => {
+    if (req.file && res.statusCode >= 400) fs.unlink(req.file.path, () => {});
+  });
+  next();
+}
+
+function requireDocumentAccess(req, res, documentId, { manage = false, download = false } = {}) {
   const tenantId = getTenantId(req);
   const doc = db.prepare(`
     SELECT d.* FROM documents d
@@ -50,7 +59,13 @@ function requireDocumentAccess(req, res, documentId, { manage = false } = {}) {
     res.status(404).json({ message: 'المستند غير موجود' });
     return null;
   }
-  const allowed = manage ? canManageCase(req.user, doc.case_id) : canAccessCase(req.user, doc.case_id);
+  let allowed = manage ? canManageCase(req.user, doc.case_id) : canAccessCase(req.user, doc.case_id);
+  if (!allowed && !manage) {
+    allowed = Boolean(db.prepare(`SELECT id FROM document_shares
+      WHERE document_id = ? AND shared_with_user_id = ?
+      ${download ? "AND permissions IN ('download', 'edit')" : ''}`)
+      .get(documentId, req.user.id));
+  }
   if (!allowed) {
     res.status(403).json({ message: 'ليس لديك صلاحية الوصول إلى هذا المستند' });
     return null;
@@ -168,7 +183,7 @@ router.delete('/:id', (req, res, next) => {
 });
 
 // POST /api/documents/upload - Upload file to case
-router.post('/upload', upload.single('file'), (req, res, next) => {
+router.post('/upload', upload.single('file'), cleanRejectedUpload, (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     if (!req.file) return res.status(400).json({ message: 'يرجى اختيار ملف لرفعه' });
@@ -183,22 +198,25 @@ router.post('/upload', upload.single('file'), (req, res, next) => {
       INSERT INTO documents (original_name, stored_name, file_path, file_size, mime_type, case_id, uploaded_by, tenant_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const result = stmt.run(
-      req.file.originalname,
-      req.file.filename,
-      req.file.path,
-      req.file.size,
-      req.file.mimetype,
-      case_id,
-      req.user.id,
-      tenantId
-    );
+    const result = db.transaction(() => {
+      const inserted = stmt.run(
+        req.file.originalname,
+        req.file.filename,
+        req.file.path,
+        req.file.size,
+        req.file.mimetype,
+        case_id,
+        req.user.id,
+        tenantId
+      );
 
-    // Initial version entry (version 1)
-    db.prepare(`
-      INSERT INTO document_versions (document_id, version_number, file_path, file_size, change_note, uploaded_by)
-      VALUES (?, 1, ?, ?, ?, ?)
-    `).run(result.lastInsertRowid, req.file.path, req.file.size, 'النسخة الأصلية الأولى', req.user.id);
+      // Initial version entry (version 1)
+      db.prepare(`
+        INSERT INTO document_versions (document_id, version_number, file_path, file_size, change_note, uploaded_by)
+        VALUES (?, 1, ?, ?, ?, ?)
+      `).run(inserted.lastInsertRowid, req.file.path, req.file.size, 'النسخة الأصلية الأولى', req.user.id);
+      return inserted;
+    })();
 
     res.status(201).json({ success: true, message: 'تم رفع المستند بنجاح', documentId: result.lastInsertRowid });
   } catch (err) {
@@ -207,29 +225,34 @@ router.post('/upload', upload.single('file'), (req, res, next) => {
 });
 
 // POST /api/documents/:id/version - Upload new version of document
-router.post('/:id/version', upload.single('file'), (req, res, next) => {
+router.post('/:id/version', upload.single('file'), cleanRejectedUpload, (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'يرجى اختيار ملف النسخة الجديدة' });
     const { change_note } = req.body;
     const docId = req.params.id;
 
     const doc = requireDocumentAccess(req, res, docId, { manage: true });
-    if (!doc) return;
+    if (!doc) {
+      fs.unlinkSync(req.file.path);
+      return;
+    }
 
     const newVersion = doc.current_version + 1;
 
-    // Update document record
-    db.prepare(`
-      UPDATE documents
-      SET stored_name = ?, file_path = ?, file_size = ?, mime_type = ?, current_version = ?
-      WHERE id = ?
-    `).run(req.file.filename, req.file.path, req.file.size, req.file.mimetype, newVersion, docId);
+    db.transaction(() => {
+      // Update document record
+      db.prepare(`
+        UPDATE documents
+        SET stored_name = ?, file_path = ?, file_size = ?, mime_type = ?, current_version = ?
+        WHERE id = ?
+      `).run(req.file.filename, req.file.path, req.file.size, req.file.mimetype, newVersion, docId);
 
-    // Add version record
-    db.prepare(`
-      INSERT INTO document_versions (document_id, version_number, file_path, file_size, change_note, uploaded_by)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(docId, newVersion, req.file.path, req.file.size, change_note || `تحديث الإصدار رقم ${newVersion}`, req.user.id);
+      // Add version record
+      db.prepare(`
+        INSERT INTO document_versions (document_id, version_number, file_path, file_size, change_note, uploaded_by)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(docId, newVersion, req.file.path, req.file.size, change_note || `تحديث الإصدار رقم ${newVersion}`, req.user.id);
+    })();
 
     res.json({ success: true, message: `تم إضافة الإصدار رقم ${newVersion} للمستند بنجاح` });
   } catch (err) {
@@ -264,7 +287,7 @@ router.post('/share', (req, res, next) => {
 
     const doc = requireDocumentAccess(req, res, document_id, { manage: true });
     if (!doc) return;
-    const recipient = db.prepare('SELECT id FROM users WHERE id = ? AND tenant_id = ? AND is_active = 1').get(shared_with_user_id, tenantId);
+    const recipient = db.prepare("SELECT id FROM users WHERE id = ? AND tenant_id = ? AND is_active = 1 AND role IN ('admin', 'lawyer')").get(shared_with_user_id, tenantId);
     if (!recipient) return res.status(400).json({ message: 'المستخدم المراد المشاركة معه غير موجود في هذا المكتب أو غير مفعّل' });
     if (!['view', 'download', 'edit'].includes(permissions)) return res.status(400).json({ message: 'صلاحية المشاركة غير صالحة' });
 
@@ -291,7 +314,7 @@ router.post('/share', (req, res, next) => {
 // GET /api/documents/download/:id - Download document file
 router.get('/download/:id', (req, res, next) => {
   try {
-    const doc = requireDocumentAccess(req, res, req.params.id);
+    const doc = requireDocumentAccess(req, res, req.params.id, { download: true });
     if (!doc) return;
     if (!fs.existsSync(doc.file_path)) {
       return res.status(404).json({ message: 'الملف غير موجود على الخادم' });

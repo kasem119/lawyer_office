@@ -1,0 +1,54 @@
+{
+  "status": "deployed",
+  "host": "102.203.202.104",
+  "backup": "/opt/lawyer_office/deployment-backups/architecture-20261012-140147",
+  "database_backup": "/opt/lawyer_office/deployment-backups/architecture-20261012-140147/office-snapshot.db",
+  "backend_files": [
+    "server/index.js",
+    "server/app.js",
+    "server/routes/invoiceRoutes.js",
+    "server/middleware/errorHandler.js",
+    "server/domain/billing/invoice.js",
+    "server/application/ApplicationError.js",
+    "server/application/invoiceService.js",
+    "server/infrastructure/repositories/invoiceRepository.js",
+    "server/composition/invoices.js",
+    "server/package.json",
+    "server/tests/domain/invoice.test.mjs",
+    "server/package-lock.json"
+  ],
+  "frontend_files": 0,
+  "files_verified": 12,
+  "service": "active",
+  "health": "ok",
+  "authorization_probes": {
+    "/api/cases": 401,
+    "/api/users": 401,
+    "/api/documents": 401,
+    "/api/templates": 401,
+    "/api/invoices": 401,
+    "/api/platform/tenants": 401,
+    "/api/portal/overview": 401
+  },
+  "runtime_versions": {
+    "express": "4.22.3",
+    "proxy-addr": "2.0.8",
+    "qs": "6.16.0",
+    "brace-expansion": "1.1.21"
+  },
+  "verified_at_utc": "20261012-140147",
+  "hashes": {
+    "server/index.js": "ddb94fbedd18d7c463f85c4e63f1320f1ad638b3bfeac5bf43002d84eecc7a4e",
+    "server/app.js": "1e29734b703328e9c2ff881f6abe2419efe4a636140f6011f3e5e45eb13af8de",
+    "server/routes/invoiceRoutes.js": "ac15af386b812805ecf3528a982598097c41436c7edcff1395ff12beca308203",
+    "server/middleware/errorHandler.js": "33497c68d68e54d9a48a6871ad8f6d3d294f5550bf97b20b4ad0fb8c456a0858",
+    "server/domain/billing/invoice.js": "3a278ded0cc65e5dffc2ed5421ed220179e39b2d4c687cb62beb02f1dea322c3",
+    "server/application/ApplicationError.js": "eebe356a015f990534321e8b72c9d70f050567464b24cd725559f39b5a611995",
+    "server/application/invoiceService.js": "a4473a313c96b608954d5ef2bbd559a38fa218901e9d3c927817f5d638ec5647",
+    "server/infrastructure/repositories/invoiceRepository.js": "44adaf389cef67e4bec46eae9b085152bc9810311c001e1c3685b8e94a997cb3",
+    "server/composition/invoices.js": "e03d293be3ddaf0fb507eeddacd31928a30976082884004b5c8743f19dfefeba",
+    "server/package.json": "08e987609ee5dd703d5db7b6d0d328c24aeddc1ccc79eb27875a7cc48f23c5c3",
+    "server/tests/domain/invoice.test.mjs": "394b4299998b933c4457d10ab7f5f20bcb5b27784d4e85bae8302aeb58d9d46b",
+    "server/package-lock.json": "7f47a0cc3e727817bacffdf83bf7b5ce9942115aef9167c3a6e8db08e3c83334"
+  }
+}

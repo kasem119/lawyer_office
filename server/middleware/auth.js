@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, JWT_REFRESH_SECRET, ACCESS_TOKEN_EXPIRES, REFRESH_TOKEN_EXPIRES } from '../config.js';
 import db from '../database/db.js';
+import { officeAccessError } from '../domain/subscriptions/accessPolicy.js';
 
 export function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -21,6 +22,11 @@ export function authenticateToken(req, res, next) {
       return res.status(403).json({ message: 'انتهت صلاحية الجلسة، يرجى إعادة تسجيل الدخول', code: 'TOKEN_EXPIRED' });
     }
 
+    // Client IDs and staff IDs belong to different tables, even when numbers match.
+    if (!['admin', 'lawyer', 'super_admin'].includes(user.role)) {
+      return res.status(403).json({ message: 'جلسة الدخول غير صالحة لحساب موظف' });
+    }
+
     // Verify user is active in DB
     const dbUser = db.prepare('SELECT id, name, email, role, phone, is_active, tenant_id FROM users WHERE id = ?').get(user.id);
     if (!dbUser || dbUser.is_active !== 1) {
@@ -35,6 +41,9 @@ export function authenticateToken(req, res, next) {
     } catch {
       req.tenant = null;
     }
+
+    const accessError = officeAccessError(req.tenant, dbUser.role);
+    if (accessError) return res.status(403).json(accessError);
 
     next();
   });

@@ -25,6 +25,12 @@ export default function CaseDetails({ caseId, onBack }) {
   const [editingEvent, setEditingEvent] = useState(null);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCloseCaseModalOpen, setIsCloseCaseModalOpen] = useState(false);
+  const [targetCloseStatus, setTargetCloseStatus] = useState('closed');
+  const [closeNote, setCloseNote] = useState('');
+  const [closeFile, setCloseFile] = useState(null);
+  const [closeUploadedFileName, setCloseUploadedFileName] = useState('');
+  const [closeLoading, setCloseLoading] = useState(false);
   const [selectedDocForVersions, setSelectedDocForVersions] = useState(null);
   const [selectedDocForShare, setSelectedDocForShare] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -74,27 +80,86 @@ export default function CaseDetails({ caseId, onBack }) {
   };
 
   const handleStatusChange = async (newStatus) => {
+    if (newStatus === 'closed' || newStatus === 'archived') {
+      const pendingTasks = data?.tasks?.filter(t => t.status !== 'done');
+      if (pendingTasks && pendingTasks.length > 0) {
+        alert('لا يمكن إغلاق أو أرشفة القضية لوجود مهام غير منجزة مرتبط بها.');
+        return;
+      }
+      const upcomingEvents = data?.events?.filter(e => new Date(e.date) >= new Date(new Date().toISOString().split('T')[0]));
+      if (upcomingEvents && upcomingEvents.length > 0) {
+        alert('لا يمكن إغلاق أو أرشفة القضية لوجود جلسات أو مواعيد قادمة.');
+        return;
+      }
+      setTargetCloseStatus(newStatus);
+      setCloseNote('');
+      setCloseFile(null);
+      setCloseUploadedFileName('');
+      setIsCloseCaseModalOpen(true);
+      return;
+    }
+    await executeStatusChange(newStatus);
+  };
+
+  const executeStatusChange = async (newStatus, closureNote) => {
     try {
       const res = await apiFetch(`/cases/${caseId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus, closure_note: closureNote })
       });
       if (res.ok) {
         fetchDetails();
+        return true;
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.message || 'فشل تحديث حالة القضية');
+        alert(err.message || 'حدث خطأ أثناء تغيير الحالة');
       }
     } catch (err) {
-      alert(err.message || 'فشل تحديث حالة القضية');
+      alert(err.message || 'حدث خطأ أثناء تغيير الحالة');
+    }
+    return false;
+  };
+
+  const submitCloseCase = async (e) => {
+    e.preventDefault();
+    setCloseLoading(true);
+    try {
+      if (closeFile) {
+        const formData = new FormData();
+        formData.append('file', closeFile);
+        formData.append('case_id', caseId);
+
+        const uploadRes = await apiFetch('/documents/upload', {
+          method: 'POST',
+          body: formData
+        });
+        if (!uploadRes.ok) {
+           const err = await uploadRes.json().catch(()=>({}));
+           throw new Error(err.message || 'فشل رفع المستند');
+        }
+        // Preserve the successful upload if the subsequent status request fails.
+        setCloseUploadedFileName(closeFile.name);
+        setCloseFile(null);
+      }
+
+      if (await executeStatusChange(targetCloseStatus, closeNote)) {
+        setIsCloseCaseModalOpen(false);
+      }
+    } catch (err) {
+      alert(err.message || 'حدث خطأ أثناء إغلاق القضية');
+    } finally {
+      setCloseLoading(false);
     }
   };
 
   const handleToggleDone = async () => {
-    const nextStatus = caseItem.status === 'closed' ? 'active' : 'closed';
-    const msg = nextStatus === 'closed' ? 'إغلاق القضية واعتبارها مكتملة ومنتهية' : 'إعادة تنشيط وفتح القضية';
-    if (!window.confirm(`هل ترغب في ${msg}؟`)) return;
-    await handleStatusChange(nextStatus);
+    if (caseItem.status === 'closed') {
+      const msg = 'هل تريد إعادة فتح القضية وجعلها نشطة؟';
+      if (!window.confirm(msg)) return;
+      await executeStatusChange('active');
+    } else {
+      handleStatusChange('closed');
+    }
   };
 
   const handleEditSave = async (formData) => {
@@ -563,6 +628,41 @@ export default function CaseDetails({ caseId, onBack }) {
       )}
 
       {/* Modals */}
+
+      {isCloseCaseModalOpen && (
+        <Modal isOpen={true} title={targetCloseStatus === 'closed' ? "إتمام القضية" : "أرشفة القضية"} onClose={closeLoading ? undefined : () => setIsCloseCaseModalOpen(false)}>
+          <form onSubmit={submitCloseCase} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div>
+              <label className="form-label">الحكم النهائي / ملاحظات الإغلاق</label>
+              <textarea
+                className="form-input"
+                rows="4"
+                maxLength={20000}
+                disabled={closeLoading}
+                value={closeNote}
+                onChange={e => setCloseNote(e.target.value)}
+                placeholder="اكتب خلاصة الحكم أو أي ملاحظات نهائية..."
+              ></textarea>
+            </div>
+            <div>
+              <label className="form-label">إدراج الحكم النهائي (مستند أو صورة) اختياري</label>
+              <input
+                type="file"
+                className="form-input"
+                disabled={closeLoading}
+                onChange={e => setCloseFile(e.target.files[0])}
+              />
+              {closeUploadedFileName && <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>تم رفع المستند: {closeUploadedFileName}</p>}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+              <Button variant="secondary" type="button" disabled={closeLoading} onClick={() => setIsCloseCaseModalOpen(false)}>إلغاء</Button>
+              <Button type="submit" disabled={closeLoading}>
+                {closeLoading ? 'جاري الحفظ...' : 'تأكيد وحفظ'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
       <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title={`تعديل بيانات القضية (${caseItem.case_number})`}>
         <CaseForm initialValues={caseItem} onSave={handleEditSave} onCancel={() => setIsEditModalOpen(false)} />
       </Modal>

@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { validateEvent } from '../middleware/validator.js';
 import { createNotification } from '../services/notificationService.js';
 import { getEventRecipients } from '../services/reminderCron.js';
+import { canAccessCase, canAccessEvent } from '../middleware/permissions.js';
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -19,7 +20,7 @@ router.get('/', (req, res, next) => {
     let events;
     if (req.user.role === 'admin' || req.user.role === 'super_admin') {
       events = db.prepare(`
-        SELECT e.*, c.case_number, c.title as case_title, u.name as lawyer_name
+        SELECT DISTINCT e.*, c.case_number, c.title as case_title, u.name as lawyer_name
         FROM events e
         LEFT JOIN cases c ON e.case_id = c.id
         JOIN users u ON e.user_id = u.id
@@ -28,7 +29,7 @@ router.get('/', (req, res, next) => {
       `).all(tenantId);
     } else {
       events = db.prepare(`
-        SELECT e.*, c.case_number, c.title as case_title, u.name as lawyer_name
+        SELECT DISTINCT e.*, c.case_number, c.title as case_title, u.name as lawyer_name
         FROM events e
         LEFT JOIN cases c ON e.case_id = c.id
         JOIN users u ON e.user_id = u.id
@@ -48,6 +49,10 @@ router.post('/', validateEvent, (req, res, next) => {
   try {
     const tenantId = getTenantId(req);
     const { title, description, event_type = 'court_date', date, time, end_time, location, case_id, reminder_minutes = 60 } = req.body;
+
+    if (case_id != null && !canAccessCase(req.user, case_id)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
+    }
 
     const stmt = db.prepare(`
       INSERT INTO events (title, description, event_type, date, time, end_time, location, case_id, user_id, reminder_minutes, tenant_id)
@@ -99,6 +104,10 @@ router.put('/:id', validateEvent, (req, res, next) => {
 
     if (req.user.role !== 'admin' && req.user.role !== 'super_admin' && existing.user_id !== req.user.id) {
       return res.status(403).json({ success: false, message: 'ليس لديك صلاحية تعديل هذا الموعد' });
+    }
+
+    if (case_id != null && !canAccessCase(req.user, case_id)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذه القضية' });
     }
 
     db.prepare(`
@@ -173,6 +182,10 @@ router.post('/:id/remind', (req, res, next) => {
 
     if (!event) {
       return res.status(404).json({ success: false, message: 'الموعد غير موجود' });
+    }
+
+    if (!canAccessEvent(req.user, event)) {
+      return res.status(403).json({ message: 'ليس لديك صلاحية الوصول لهذا الموعد' });
     }
 
     const recipients = getEventRecipients(eventId);

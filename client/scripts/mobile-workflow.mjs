@@ -1,0 +1,133 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { once } from 'node:events';
+import { fileURLToPath } from 'node:url';
+import bcrypt from '../../server/node_modules/bcryptjs/index.js';
+import puppeteer from '../../server/node_modules/puppeteer/lib/puppeteer/puppeteer.js';
+
+// All writes are confined to memory and an OS temporary folder. Never load .env credentials.
+const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'lawyer-mobile-workflow-'));
+Object.assign(process.env, { NODE_ENV: 'test', DB_PATH: ':memory:', UPLOADS_DIR: path.join(temporaryRoot, 'uploads'), BACKUPS_DIR: path.join(temporaryRoot, 'backups'), JWT_SECRET: 'mobile-test-access-secret', JWT_REFRESH_SECRET: 'mobile-test-refresh-secret', ENCRYPTION_KEY: 'mobile-test-encryption-secret' });
+const { default: app } = await import('../../server/app.js');
+const { default: db } = await import('../../server/database/db.js');
+const { DB_PATH } = await import('../../server/config.js');
+assert.equal(DB_PATH, ':memory:');
+db.pragma('foreign_keys=OFF');
+for (const { name } of db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all()) db.exec(`DELETE FROM "${name.replaceAll('"', '""')}"`);
+db.pragma('foreign_keys=ON');
+db.prepare("INSERT INTO tenants(id,slug,name,owner_name,email,plan,status,is_active) VALUES(1,'mobile-test','مكتب اختبار الهاتف','Test','office@test.invalid','professional','active',1)").run();
+const password = ' Mobile-test-password-2026! ';
+db.prepare("INSERT INTO users(id,name,email,password_hash,role,tenant_id,is_active) VALUES(1,'محامي الاختبار','mobile@test.invalid',?,'admin',1,1)").run(bcrypt.hashSync(password, 4));
+db.prepare("INSERT INTO clients(id,name,phone,created_by,tenant_id) VALUES(1,'موكل اختبار الهاتف','0910000099',1,1)").run();
+db.prepare("INSERT INTO clients(id,name,phone,created_by,tenant_id) VALUES(2,'موكل آخر غير مصرح','0910000088',1,1)").run();
+const server = app.listen(0, '127.0.0.1');
+await once(server, 'listening');
+const origin = `http://127.0.0.1:${server.address().port}`;
+const output = fileURLToPath(new URL('../../artifacts/team-2026-10-14/mobile/', import.meta.url));
+fs.mkdirSync(output, { recursive: true });
+const browser = await puppeteer.launch({ headless: true });
+const errors = [];
+const results = [];
+try {
+  const page = await browser.newPage();
+  page.setDefaultTimeout(20000);
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setBypassServiceWorker(true);
+  await page.evaluateOnNewDocument(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register = async () => { throw new Error('Disabled in isolated QA'); }; });
+  const clickText = async (text, query = 'button') => {
+    await page.waitForFunction((t, q) => [...document.querySelectorAll(q)].some(el => el.textContent.trim() === t), {}, text, query);
+    await page.evaluate((t, q) => [...document.querySelectorAll(q)].find(el => el.textContent.trim() === t).click(), text, query);
+  };
+  const layout = async name => {
+    for (const width of [320, 375, 390, 768, 1440]) {
+      // Keep emulation mode stable: toggling isMobile makes Chromium reload the document.
+      await page.setViewport({ width, height: 900, isMobile: true, hasTouch: true });
+      await page.evaluate(() => document.fonts.ready);
+      const geometry = await page.evaluate(() => ({ viewport: innerWidth, body: document.body.scrollWidth, root: document.documentElement.scrollWidth, dialogs: [...document.querySelectorAll('[role="dialog"]')].map(el => ({ scroll: el.scrollWidth, client: el.clientWidth })) }));
+      assert.ok(geometry.root <= width + 1 && geometry.body <= width + 1, `${name} overflow ${JSON.stringify(geometry)}`);
+      assert.ok(geometry.dialogs.every(el => el.scroll <= el.client + 1), `${name} dialog overflow ${width}`);
+      await page.screenshot({ path: path.join(output, `${name}-${width}.png`), fullPage: true });
+    }
+    await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+    results.push(`${name}: 320/375/390/768/1440 no horizontal overflow`);
+  };
+  await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+  await page.goto(`${origin}/#login`);
+  await page.waitForSelector('input[name="email"]');
+  await layout('login');
+  // Simulate autofill that updates DOM values without sending React input events.
+  await page.evaluate(value => { document.querySelector('input[name="email"]').value = ' MOBILE@TEST.INVALID '; document.querySelector('input[name="password"]').value = value; }, password);
+  const loginResponse = page.waitForResponse(response => response.url().endsWith('/api/auth/login'));
+  await clickText('دخول المنظومة');
+  assert.equal((await loginResponse).status(), 200);
+  await page.waitForFunction(() => document.body.innerText.includes('نظرة عامة على المكتب'));
+  results.push('Real HTTP login: DOM-only autofill, uppercase/space email, password whitespace preserved');
+  await clickText('القضايا', '.mobile-bottom-nav button');
+  await clickText('إضافة قضية جديدة');
+  await page.waitForSelector('[role="dialog"]');
+  await layout('case-form');
+  await page.select('[role="dialog"] select', '1');
+  await page.type('[placeholder="مثال: دعوى مطالبات مالية بموجب عقد توريد"]', 'قضية رحلة الهاتف التجريبية');
+  const createResponse = page.waitForResponse(response => response.url().endsWith('/api/cases') && response.request().method() === 'POST');
+  await clickText('حفظ القضية');
+  const created = await createResponse;
+  assert.equal(created.status(), 201);
+  const caseItem = db.prepare('SELECT * FROM cases WHERE title = ?').get('قضية رحلة الهاتف التجريبية');
+  assert.ok(caseItem?.id);
+  results.push('Case creation through mobile form persisted in isolated SQLite');
+  await page.waitForFunction(() => !document.querySelector('[role="dialog"]'));
+  await page.click('button[aria-label="القائمة الرئيسية"]');
+  await clickText('المستندات والملفات', 'aside button');
+  await clickText('إرفاق / تصوير مستند');
+  await page.waitForSelector('#doc-file-input');
+  await layout('upload');
+  await page.select('[role="dialog"] select', String(caseItem.id));
+  const filename = path.join(temporaryRoot, 'synthetic-mobile-document.pdf');
+  fs.writeFileSync(filename, '%PDF-1.4\nSynthetic mobile workflow fixture\n%%EOF');
+  await (await page.$('#doc-file-input')).uploadFile(filename);
+  const uploadResponse = page.waitForResponse(response => response.url().includes('/api/documents/upload'));
+  await clickText('رفع المستند');
+  assert.equal((await uploadResponse).status(), 201);
+  assert.equal(db.prepare('SELECT count(*) AS total FROM documents WHERE case_id=?').get(caseItem.id).total, 1);
+  results.push('Real multipart PDF upload from mobile dialog persisted');
+  const token = await page.evaluate(() => localStorage.getItem('access_token'));
+  const pdf = await fetch(`${origin}/api/exports/cases/${caseItem.id}?format=pdf`, { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(pdf.status, 200);
+  assert.match(pdf.headers.get('content-type'), /application\/pdf/);
+  const bytes = Buffer.from(await pdf.arrayBuffer());
+  assert.equal(bytes.subarray(0, 5).toString(), '%PDF-');
+  fs.writeFileSync(path.join(output, 'case-export.pdf'), bytes);
+  results.push(`Real Chromium case PDF download over HTTP: ${bytes.length} bytes`);
+  await page.evaluate(() => localStorage.clear());
+  await page.goto(`${origin}/#portal`);
+  await page.waitForSelector('[role="dialog"] input');
+  await page.type('[role="dialog"] input', '0910000099');
+  await clickText('دخول إلى ملفي');
+  await page.waitForFunction(() => document.body.innerText.includes('قضية رحلة الهاتف التجريبية'));
+  assert.ok(await page.evaluate(() => document.body.innerText.includes('0910000099')), 'Portal overview must display the registered client phone');
+  const portalLogin = await fetch(`${origin}/api/portal/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: '0910000099' }) });
+  const portalToken = (await portalLogin.json()).token;
+  const overview = await fetch(`${origin}/api/portal/overview?client_id=2`, { headers: { Authorization: `Bearer ${portalToken}` } });
+  const portalData = (await overview.json()).data;
+  assert.equal(portalData.client.id, 1);
+  assert.equal(portalData.client.phone, '0910000099');
+  assert.ok(!JSON.stringify(portalData).includes('0910000088'));
+  assert.equal((await fetch(`${origin}/api/clients/2`, { headers: { Authorization: `Bearer ${portalToken}` } })).status, 403);
+  results.push('Portal token cannot override client_id or enter office API to read another client');
+  await layout('portal');
+  results.push('Public client portal login and created case overview verified');
+  assert.deepEqual(errors, []);
+  fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ results, errors, physicalDevice: false, baselineComparison: 'INCONCLUSIVE: no committed visual baseline' }, null, 2));
+  console.log('PASS ' + results.join('\nPASS '));
+} finally {
+  await browser.close();
+  server.closeAllConnections();
+  await new Promise(resolve => server.close(resolve));
+  const resolved = path.resolve(temporaryRoot);
+  assert.ok(resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) && path.basename(resolved).startsWith('lawyer-mobile-workflow-'));
+  fs.rmSync(resolved, { recursive: true, force: true });
+}
+// The imported rate limiter owns a periodic maintenance timer; the QA process is complete.
+process.exit(0);

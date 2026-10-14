@@ -52,25 +52,44 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
   };
 
   const submit = async (event) => {
-    event.preventDefault(); 
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    const readField = (key) => String(fields.get(key) ?? formData[key] ?? '').trim();
+    const submitted = {
+      officeName: readField('officeName'),
+      slug: readField('slug'),
+      adminName: readField('adminName'),
+      email: readField('email'),
+      phone: readField('phone'),
+      city: readField('city') || formData.city,
+      password: String(fields.get('password') ?? formData.password),
+      confirmPassword: String(fields.get('confirmPassword') ?? formData.confirmPassword)
+    };
+    setFormData(current => ({ ...current, ...submitted }));
     setLoading(true); 
     setError('');
     try {
-      if (formData.password !== formData.confirmPassword) {
+      if (!submitted.officeName || !submitted.adminName || !submitted.email || !submitted.phone) {
+        throw new Error('يرجى إكمال بيانات المكتب والمحامي والبريد الإلكتروني ورقم الهاتف.');
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(submitted.email)) {
+        throw new Error('تحقق من صيغة البريد الإلكتروني.');
+      }
+      if (submitted.password !== submitted.confirmPassword) {
         throw new Error('يرجى التأكد من تطابق كلمتي المرور');
       }
-      if (formData.password.length < 8) {
+      if (submitted.password.length < 8) {
         throw new Error('كلمة المرور يجب أن لا تقل عن 8 خانات');
       }
       
       await registerOffice({ 
-        officeName: formData.officeName.trim(), 
-        slug: (formData.slug || 'office-' + Date.now()).trim().toLowerCase(),
-        adminName: formData.adminName.trim(), 
-        email: formData.email.trim(), 
-        phone: formData.phone.trim(), 
-        city: formData.city,
-        password: formData.password 
+        officeName: submitted.officeName,
+        slug: (submitted.slug || 'office-' + Date.now()).toLowerCase(),
+        adminName: submitted.adminName,
+        email: submitted.email,
+        phone: submitted.phone,
+        city: submitted.city,
+        password: submitted.password
       });
     } catch (err) { 
       setError(err.message || 'حدث خطأ أثناء إنشاء الحساب'); 
@@ -88,6 +107,11 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
           className="form-input" 
           style={{ paddingRight: 38 }} 
           type={type} 
+          name={key}
+          autoComplete={extraProps.autoComplete || ({ officeName: 'organization', adminName: 'name', email: 'email', phone: 'tel', password: 'new-password', confirmPassword: 'new-password' }[key] || 'off')}
+          autoCapitalize={key === 'email' ? 'none' : undefined}
+          spellCheck={key === 'email' ? false : undefined}
+          inputMode={key === 'email' ? 'email' : key === 'phone' ? 'tel' : undefined}
           required 
           value={formData[key]} 
           onChange={(e) => update(key, e.target.value)} 
@@ -127,13 +151,13 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
           </div>
           <h1 style={{ color: 'var(--primary)', fontSize: '1.5rem', fontWeight: 'bold' }}>سجّل مكتبك في منظومة المحامي الليبي 🇱🇾</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
-            احصل على 14 يوماً تجربة مجانية بكافة المميزات بدون دفع مسبق
+            احصل على 30 يوماً تجربة مجانية بكافة المميزات بدون دفع مسبق
           </p>
         </div>
         
         {error && <div style={{ background: 'var(--error-light)', color: 'var(--error)', padding: '12px 14px', borderRadius: 'var(--radius-sm)', marginBottom: 18, fontSize: '0.9rem' }}>⚠️ {error}</div>}
         
-        <form onSubmit={submit} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+        <form onSubmit={submit} noValidate autoComplete="on" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
           {/* Office Details */}
           <div style={{ gridColumn: '1 / -1', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px', marginBottom: '4px' }}>
             <h3 style={{ color: 'var(--primary)', fontSize: '1.05rem', fontWeight: 'bold' }}>بيانات المكتب القانوني</h3>
@@ -148,6 +172,7 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
               <select
                 className="form-input"
                 style={{ paddingRight: 38 }}
+                name="city"
                 value={formData.city}
                 onChange={(e) => update('city', e.target.value)}
               >
@@ -172,7 +197,7 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
             <label className="form-label">كلمة المرور *</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input className="form-input" style={{ paddingRight: 38, paddingLeft: 38, dir: 'ltr' }} type={showPassword ? 'text' : 'password'} required value={formData.password} onChange={(e) => update('password', e.target.value)} placeholder="8 خانات على الأقل" />
+              <input className="form-input" style={{ paddingRight: 38, paddingLeft: 38, dir: 'ltr' }} type={showPassword ? 'text' : 'password'} name="password" autoComplete="new-password" required value={formData.password} onChange={(e) => update('password', e.target.value)} placeholder="8 خانات على الأقل" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -183,7 +208,7 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
             <label className="form-label">تأكيد كلمة المرور *</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input className="form-input" style={{ paddingRight: 38, paddingLeft: 38, dir: 'ltr' }} type={showConfirmPassword ? 'text' : 'password'} required value={formData.confirmPassword} onChange={(e) => update('confirmPassword', e.target.value)} />
+              <input className="form-input" style={{ paddingRight: 38, paddingLeft: 38, dir: 'ltr' }} type={showConfirmPassword ? 'text' : 'password'} name="confirmPassword" autoComplete="new-password" required value={formData.confirmPassword} onChange={(e) => update('confirmPassword', e.target.value)} />
               <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -192,7 +217,7 @@ export default function Register({ onNavigateToLogin, onNavigateToLanding }) {
           
           <div style={{ gridColumn: '1 / -1', marginTop: '14px' }}>
             <Button type="submit" disabled={loading} style={{ width: '100%', padding: '14px', fontSize: '1.05rem', fontWeight: 'bold' }}>
-              {loading ? 'جاري تجهيز المكتب...' : 'ابدأ التجربة المجانية لمكتبك (14 يوماً) 🚀'}
+              {loading ? 'جاري تجهيز المكتب...' : 'ابدأ التجربة المجانية لمكتبك (30 يوماً) 🚀'}
             </Button>
           </div>
         </form>

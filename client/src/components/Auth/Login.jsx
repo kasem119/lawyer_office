@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export default function Login({ onChangeServer, onNavigateToRegister, onNavigateToLanding }) {
-  const { login } = useAuth();
+  const { login, accessError } = useAuth();
   const { theme, cycleTheme } = useTheme();
   const [formData, setFormData] = useState({ email: '', password: '', tenantSlug: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -15,11 +15,18 @@ export default function Login({ onChangeServer, onNavigateToRegister, onNavigate
   const update = (key, value) => setFormData(current => ({ ...current, [key]: value }));
 
   const submit = async (event) => {
-    event.preventDefault(); 
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    // Read the live form values as well as React state so mobile browser autofill is not lost.
+    const email = String(fields.get('email') ?? formData.email).trim();
+    const password = String(fields.get('password') ?? formData.password);
     setLoading(true); 
     setError('');
     try {
-      await login(formData.email, formData.password, formData.tenantSlug);
+      if (!email) throw new Error('أدخل البريد الإلكتروني في الحقل أعلاه.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('تحقق من صيغة البريد الإلكتروني.');
+      if (!password) throw new Error('أدخل كلمة المرور.');
+      await login(email, password, String(fields.get('tenantSlug') ?? formData.tenantSlug).trim());
     } catch (err) { 
       setError(err.message || 'حدث خطأ أثناء العملية'); 
     } finally { 
@@ -36,6 +43,10 @@ export default function Login({ onChangeServer, onNavigateToRegister, onNavigate
           className="form-input" 
           style={{ paddingRight: 38 }} 
           type={type} 
+          name={key}
+          autoComplete={key === 'email' ? 'email' : key === 'tenantSlug' ? 'organization' : undefined}
+          autoCapitalize={key === 'email' ? 'none' : undefined}
+          spellCheck={key === 'email' ? false : undefined}
           required 
           value={formData[key]} 
           onChange={(e) => update(key, e.target.value)} 
@@ -61,9 +72,9 @@ export default function Login({ onChangeServer, onNavigateToRegister, onNavigate
           <p style={{ color: 'var(--text-muted)' }}>سجّل الدخول للوصول إلى بيانات المكتب</p>
         </div>
         
-        {error && <div style={{ background: 'var(--error-light)', color: 'var(--error)', padding: '12px 14px', borderRadius: 'var(--radius-sm)', marginBottom: 18 }}>⚠️ {error}</div>}
+        {(error || accessError) && <div role="alert" style={{ background: 'var(--error-light)', color: 'var(--error)', padding: '12px 14px', borderRadius: 'var(--radius-sm)', marginBottom: 18 }}>⚠️ {error || accessError}</div>}
         
-        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <form onSubmit={submit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {input('معرف المكتب (اختياري)', 'tenantSlug', 'text', <Building2 />, { dir: 'ltr', placeholder: 'my-office' })}
           {input('البريد الإلكتروني', 'email', 'email', <Mail />, { dir: 'ltr' })}
           
@@ -71,7 +82,7 @@ export default function Login({ onChangeServer, onNavigateToRegister, onNavigate
             <label className="form-label">كلمة المرور</label>
             <div style={{ position: 'relative' }}>
               <Lock size={18} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input className="form-input" style={{ paddingRight: 38, paddingLeft: 38, dir: 'ltr' }} type={showPassword ? 'text' : 'password'} required value={formData.password} onChange={(e) => update('password', e.target.value)} />
+              <input className="form-input" style={{ paddingRight: 38, paddingLeft: 38, dir: 'ltr' }} type={showPassword ? 'text' : 'password'} name="password" autoComplete="current-password" required value={formData.password} onChange={(e) => update('password', e.target.value)} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
                 {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
               </button>
@@ -90,7 +101,7 @@ export default function Login({ onChangeServer, onNavigateToRegister, onNavigate
               onClick={onNavigateToRegister}
               style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer' }}
             >
-              ليس لديك حساب؟ سجّل مكتبك الآن (14 يوماً مجاناً) 🚀
+              ليس لديك حساب؟ سجّل مكتبك الآن (30 يوماً مجاناً) 🚀
             </button>
           )}
 

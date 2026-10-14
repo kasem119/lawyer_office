@@ -1,0 +1,82 @@
+{
+  "status": "verified",
+  "probes": [
+    {
+      "check": "Platform owner office API separation",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "check": "Platform owner dashboard available",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "Office admin platform API separation",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "check": "Office staff list excludes platform owner",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "Office admin cases available",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "Refactored invoice service list available",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "PDF binary content",
+      "prefix": "%PDF-",
+      "bytes": 35031,
+      "pass": true
+    },
+    {
+      "check": "Real production PDF download",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "Lawyer cannot list office user accounts",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "check": "Lawyer cannot enter platform API",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "check": "Lawyer case list available",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "Client portal session available",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "check": "Client portal token cannot enter staff API",
+      "status": 403,
+      "pass": true
+    },
+    {
+      "check": "Anonymous platform API requires login",
+      "path": "/api/platform/tenants",
+      "status": 401,
+      "pass": true
+    },
+    {
+      "check": "Public web app available",
+      "status": 200,
+      "pass": true
+    }
+  ]
+}

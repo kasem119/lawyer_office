@@ -1,108 +1,57 @@
-# منظومة إدارة مكتب محاماة متكاملة
-# Law Office Management System
+# منظومة إدارة مكتب المحاماة
 
-نظام متكامل وشامل لإدارة مكاتب المحاماة والاستشارات القانونية، يشمل إدارة القضايا، الجلسات، الموكلين، الحسابات، الأتعاب، إدارة الوثائق والمستندات، والنسخ الاحتياطي التلقائي.
+تطبيق ويب لإدارة القضايا والموكلين والمواعيد والمستندات والفواتير، مع فصل صلاحيات مالك المنصة والمكاتب. الموقع المنشور: [muhami.ly](https://muhami.ly).
 
----
+## نقطة البداية
 
-## 🛠️ التقنيات المستخدمة (Tech Stack)
+- [البنية المعمارية وحدود الطبقات](docs/ARCHITECTURE.md)
+- [هيكل المجلدات](docs/PROJECT-STRUCTURE.md)
+- [فهرس الوثائق](docs/README.md)
+- [النشر وإعداد الخادم](docs/deployment/README-DEPLOY.md)
 
-- **الواجهة الأمامية (Frontend):** React, Tailwind CSS, Lucide Icons, Vite
-- **الخلفية (Backend):** Node.js, Express.js
-- **قاعدة البيانات (Database):** SQLite (better-sqlite3)
-- **الحماية والأمان:** JWT Authentication, Data Encryption, CORS, Helmet
-- **تطبيق سطح المكتب (Desktop App):** Electron
+## التقنيات
 
----
+واجهة React 18 وVite، خادم Express، وقاعدة SQLite عبر `node:sqlite` المدمجة في Node.js. الدخول يستخدم JWT وتُشفّر الحقول الحساسة. اختيار المنتج الحالي هو الويب؛ إعداد Electron السابق محفوظ داخل `scripts/archive/desktop/`.
 
-## 🚀 طريقة التثبيت والتشغيل (Getting Started)
+## إعداد بيئة التطوير
 
-### 1. المتطلبات الأساسية
-- تثبيت [Node.js](https://nodejs.org/) (الإصدار 18 أو أحدث)
-- تثبيت Git
+يتطلب المشروع Node.js **22.23 أو أحدث**. من الجذر:
 
-### 2. تثبيت الحزم (Dependencies)
-يمكن تثبيت حزم الخادم والواجهة معاً:
-```bash
-npm run install:all
-```
-أو تثبيتها يدوياً في كل مجلد:
-```bash
-cd server
-npm install
-
-cd ../client
-npm install
+```powershell
+npm --prefix server ci --legacy-peer-deps
+npm --prefix client ci
+Copy-Item server/.env.example server/.env
 ```
 
-### 3. إعداد متغيرات البيئة (Environment Variables)
-قم بنسخ ملف `.env.example` في مجلد `server` إلى `.env`:
-```bash
-cd server
-cp .env.example .env
-```
-ثم قم بتعديل المفاتيح السرية (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `ENCRYPTION_KEY`) بقيم قوية وفريدة.
+اضبط مفاتيح `JWT_SECRET` و`JWT_REFRESH_SECRET` و`ENCRYPTION_KEY` قبل التشغيل. الخادم يرفض تشغيل الإنتاج دونها. لا تُنسخ أسرار الإنتاج إلى المستودع.
 
-المساعد القانوني يعمل بقوالب محلية بدون إنترنت. لتوصيله بنموذج لغوي مجاني (OpenAI-compatible) من [قائمة الواجهات المجانية](https://github.com/open-free-llm-api/awesome-freellm-apis)، أضف في `server/.env` مثلاً مفتاح [Groq](https://console.groq.com/keys):
-
-```
-LLM_BASE_URL=https://api.groq.com/openai/v1
-LLM_API_KEY=your_key_here
-LLM_MODEL=llama-3.3-70b-versatile
+```powershell
+npm run start:server
+npm run start:client
 ```
 
-لا تضع بيانات قضايا سرية على مزود غير موثوق. إذا فشل الاتصال يعود النظام للقوالب المحلية.
+أمر الواجهة خاص بخادم التطوير. في النشر، يقدم Express ملفات `client/dist/` المبنية، ويستقبل الخادم `/api` و`/ws`.
 
-### 4. تشغيل النظام (Running the Application)
+## البناء والتحقق
 
-- **تشغيل الخادم (Server):**
-  ```bash
-  npm run start:server
-  ```
-  *(يعمل الخادم افتراضياً على المنفذ `http://localhost:3000`)*
-
-- **تشغيل الواجهة الأمامية (Client Web):**
-  ```bash
-  npm run start:client
-  ```
-
-- **تشغيل الموقع لأجهزة المكتب (موقع ويب على الشبكة المحلية):**
-  1. على جهاز الخادم افتح جدار الحماية مرة واحدة:
-     ```bash
-     npm run setup:firewall
-     ```
-  2. ابنِ الواجهة وشغّل الخادم (موقع واحد على المنفذ 3000):
-     ```bash
-     npm run start:web
-     ```
-  3. من الهاتف أو أي جهاز على نفس شبكة الـ Wi‑Fi افتح المتصفح على العنوان الذي يطبعه الخادم، مثل:
-     `http://192.168.1.50:3000`
-     (استبدل الرقم بعنوان IP الظاهر في نافذة الخادم.)
-
-- **تشغيل تطبيق سطح المكتب (Electron):**
-  ```bash
-  npm run electron:client
-  ```
-
----
-
-## 📁 هيكلية المشروع (Project Structure)
-
-```text
-lawyer_office/
-├── client/              # تطبيق الواجهة الأمامية (React + Electron)
-│   ├── src/             # شاشات ومكونات النظام
-│   └── package.json
-├── server/              # خادم الـ API وقاعدة البيانات
-│   ├── database/        # الاتصال ومخططات SQLite
-│   ├── routes/          # مسارات ونقاط النهاية للـ API
-│   ├── middleware/      # التحقق والحماية
-│   └── package.json
-├── package.json         # أوامر التشغيل المجمعة
-└── README.md
+```powershell
+npm run build:client
+npm run test:architecture
+npm run test:domain
+npm run test:permissions
+npm run test:security
+npm run test:regressions
+npm --prefix server run test:improvements
+npm --prefix server run test:notifications
+npm --prefix client run test:auth-session
+npm --prefix client run test:bundle
+npm --prefix client run test:mobile
 ```
 
----
+مجموعات الصلاحيات والأمان والانحدار المذكورة تستخدم قاعدة ذاكرة وملفات مؤقتة. لا تستخدم `server/npm test` القديم ضد بيانات مكتب حقيقية؛ هذا المشغل التاريخي ليس ضمن الفحوص المعتمدة هنا.
 
-## 🔒 الأمان والبيانات الحساسة
-- ملفات قواعد البيانات (`*.db`) وملفات البيئة الحقيقية (`.env`) وملفات النسخ الاحتياطي والوثائق المرفوعة مستثناة من التتبع بواسطة `.gitignore`.
+## النشر والبيانات
+
+أدوات النشر داخل `deploy/`، والوثائق داخل `docs/deployment/`. يجب أن تشمل أي حزمة خلفية كل الملفات الجديدة التي يستوردها الكود؛ لا يكفي نقل مسار HTTP وحده بعد استخراج طبقات جديدة. تفاصيل نشر المعمارية في [تقرير الإصدار](docs/deployment/ARCHITECTURE-RELEASE.md).
+
+ملفات البيئة وقواعد البيانات والمرفقات والنسخ الاحتياطية خارج Git. نواتج التشخيص داخل `artifacts/`، وملفات البناء داخل `client/dist/`. لا تنقل قواعد البيانات أو المرفقات أثناء تنظيم الكود.

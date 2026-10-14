@@ -1,282 +1,32 @@
 import express from 'express';
-import db from '../database/db.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { sendInvoiceEmail } from '../services/emailService.js';
-import { logActivity } from '../services/auditService.js';
-import { canAccessInvoice } from '../middleware/permissions.js';
+import { invoices } from '../composition/invoices.js';
 
 const router = express.Router();
 router.use(authenticateToken);
+const handle = action => (req, res, next) => Promise.resolve().then(() => action(req, res)).catch(next);
 
-function getTenantId(req) {
-  return req.user.tenant_id || 1;
-}
-
-// GET /api/invoices
-router.get('/', (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    let sql = `
-      SELECT i.*, c.case_number, c.title as case_title, cl.name as client_name 
-      FROM invoices i
-      LEFT JOIN cases c ON i.case_id = c.id
-      LEFT JOIN clients cl ON i.client_id = cl.id
-      WHERE i.tenant_id = ?
-    `;
-    let params = [tenantId];
-    
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      // Lawyer sees invoices for their cases or created by them
-      sql += ` AND (c.lead_lawyer_id = ? OR EXISTS (SELECT 1 FROM case_lawyers cl2 WHERE cl2.case_id = c.id AND cl2.user_id = ?) OR i.created_by = ?)`;
-      params.push(req.user.id, req.user.id, req.user.id);
-    }
-
-    if (req.query.case_id) {
-      sql += ` AND i.case_id = ?`;
-      params.push(req.query.case_id);
-    }
-    
-    sql += ` ORDER BY i.created_at DESC`;
-    
-    const stmt = db.prepare(sql);
-    const invoices = stmt.all(...params);
-    
-    res.json({ success: true, data: invoices });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/invoices/:id
-router.get('/:id', (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    const invoiceStmt = db.prepare(`
-      SELECT i.*, c.case_number, c.title as case_title, cl.name as client_name 
-      FROM invoices i
-      LEFT JOIN cases c ON i.case_id = c.id
-      LEFT JOIN clients cl ON i.client_id = cl.id
-      WHERE (i.id = ? OR i.invoice_number = ?) AND i.tenant_id = ?
-    `);
-    const invoice = invoiceStmt.get(req.params.id, req.params.id, tenantId);
-    
-    if (!invoice) {
-      return res.status(404).json({ success: false, message: 'الفاتورة غير موجودة' });
-    }
-
-    if (!canAccessInvoice(req.user, invoice)) {
-      return res.status(403).json({ success: false, message: 'ليس لديك صلاحية عرض هذه الفاتورة' });
-    }
-    
-    const itemsStmt = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ? ORDER BY id ASC');
-    const items = itemsStmt.all(invoice.id);
-    
-    invoice.items = items;
-    
-    res.json({ success: true, data: invoice });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/invoices
-router.post('/', (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    const { case_id, client_id, due_date, notes, items } = req.body;
-    
-    // Auto-generate invoice_number within this tenant
-    const year = new Date().getFullYear();
-    const countStmt = db.prepare('SELECT COUNT(*) as count FROM invoices WHERE invoice_number LIKE ? AND tenant_id = ?');
-    const { count } = countStmt.get(`INV-${year}-%`, tenantId);
-    const nnn = String(count + 1).padStart(3, '0');
-    const invoice_number = `INV-${year}-${nnn}`;
-    
-    let total_amount = 0;
-    if (items && Array.isArray(items)) {
-      items.forEach(item => {
-        total_amount += (item.quantity * item.unit_price);
-      });
-    }
-    
-    const insertInvoice = db.prepare(`
-      INSERT INTO invoices (invoice_number, case_id, client_id, total_amount, status, due_date, notes, created_by, tenant_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
-    const info = insertInvoice.run(invoice_number, case_id, client_id, total_amount, 'draft', due_date, notes || '', req.user.id, tenantId);
-    const invoice_id = info.lastInsertRowid;
-    
-    if (items && Array.isArray(items)) {
-      const insertItem = db.prepare(`
-        INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
-        VALUES (?, ?, ?, ?, ?)
-      `);
-      
-      items.forEach(item => {
-        const item_total = item.quantity * item.unit_price;
-        insertItem.run(invoice_id, item.description, item.quantity, item.unit_price, item_total);
-      });
-    }
-    
-    res.json({ success: true, message: 'تم إنشاء الفاتورة بنجاح', data: { id: invoice_id } });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PUT /api/invoices/:id/status
-router.put('/:id/status', (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    const { status } = req.body;
-    const invoice_id = req.params.id;
-    
-    let paid_date = null;
-    if (status === 'paid') {
-      paid_date = new Date().toISOString().split('T')[0];
-    }
-    
-    const updateStmt = db.prepare(`
-      UPDATE invoices SET status = ?, paid_date = ? WHERE id = ? AND tenant_id = ?
-    `);
-    const result = updateStmt.run(status, paid_date, invoice_id, tenantId);
-    if (result.changes === 0) {
-      return res.status(404).json({ success: false, message: 'الفاتورة غير موجودة' });
-    }
-    
-    res.json({ success: true, message: 'تم تحديث حالة الفاتورة بنجاح' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PUT /api/invoices/:id - Edit invoice details and line items
-router.put('/:id', (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    const invoice_id = req.params.id;
-    const { case_id, client_id, due_date, notes, items, status } = req.body;
-
-    const existing = db.prepare('SELECT * FROM invoices WHERE id = ? AND tenant_id = ?').get(invoice_id, tenantId);
-    if (!existing) {
-      return res.status(404).json({ success: false, message: 'الفاتورة غير موجودة' });
-    }
-
-    if (req.user.role !== 'admin' && existing.created_by !== req.user.id) {
-      return res.status(403).json({ success: false, message: 'غير مصرح لك بتعديل هذه الفاتورة' });
-    }
-
-    let total_amount = existing.total_amount;
-    if (items && Array.isArray(items)) {
-      total_amount = items.reduce((sum, it) => sum + (Number(it.quantity || 1) * Number(it.unit_price || 0)), 0);
-    }
-
-    // Execute within transaction
-    const updateTx = db.transaction(() => {
-      db.prepare(`
-        UPDATE invoices
-        SET case_id = COALESCE(?, case_id),
-            client_id = COALESCE(?, client_id),
-            total_amount = ?,
-            due_date = COALESCE(?, due_date),
-            notes = COALESCE(?, notes),
-            status = COALESCE(?, status)
-        WHERE id = ? AND tenant_id = ?
-      `).run(case_id, client_id, total_amount, due_date, notes, status, invoice_id, tenantId);
-
-      if (items && Array.isArray(items)) {
-        db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);
-        const insertItem = db.prepare(`
-          INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
-          VALUES (?, ?, ?, ?, ?)
-        `);
-        for (const it of items) {
-          const itemTotal = Number(it.quantity || 1) * Number(it.unit_price || 0);
-          insertItem.run(invoice_id, it.description, it.quantity || 1, it.unit_price, itemTotal);
-        }
-      }
-    });
-
-    updateTx();
-
-    res.json({ success: true, message: 'تم تحديث بيانات الفاتورة بنجاح' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// DELETE /api/invoices/:id
-router.delete('/:id', (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-      return res.status(403).json({ success: false, message: 'غير مصرح لك' });
-    }
-    
-    const invoice_id = req.params.id;
-    
-    const delInvoice = db.prepare('DELETE FROM invoices WHERE id = ? AND tenant_id = ?');
-    const result = delInvoice.run(invoice_id, tenantId);
-    if (result.changes === 0) {
-      return res.status(404).json({ success: false, message: 'الفاتورة غير موجودة' });
-    }
-    
-    res.json({ success: true, message: 'تم حذف الفاتورة بنجاح' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/invoices/:id/send-email - Dispatch invoice via email
-router.post('/:id/send-email', async (req, res, next) => {
-  try {
-    const tenantId = getTenantId(req);
-    const invoice_id = req.params.id;
-    const invoiceStmt = db.prepare(`
-      SELECT i.*, c.case_number, c.title as case_title, cl.name as client_name, cl.email as client_email 
-      FROM invoices i
-      LEFT JOIN cases c ON i.case_id = c.id
-      LEFT JOIN clients cl ON i.client_id = cl.id
-      WHERE i.id = ? AND i.tenant_id = ?
-    `);
-    const invoice = invoiceStmt.get(invoice_id, tenantId);
-
-    if (!invoice) {
-      return res.status(404).json({ success: false, message: 'الفاتورة غير موجودة' });
-    }
-
-    const items = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
-
-    const client = {
-      name: invoice.client_name,
-      email: invoice.client_email
-    };
-
-    const result = await sendInvoiceEmail({ invoice, client, items });
-
-    // Update status to 'sent' if currently 'draft'
-    if (invoice.status === 'draft') {
-      db.prepare("UPDATE invoices SET status = 'sent' WHERE id = ? AND tenant_id = ?").run(invoice_id, tenantId);
-    }
-
-    logActivity(
-      req.user.id,
-      'SEND_EMAIL',
-      'invoices',
-      invoice_id,
-      `تم إرسال الفاتورة ${invoice.invoice_number} بالبريد الإلكتروني إلى ${result.recipient}`,
-      tenantId
-    );
-
-    res.json({
-      success: true,
-      message: `تم إرسال الفاتورة بنجاح إلى ${result.recipient}`,
-      data: result
-    });
-  } catch (err) {
-    next(err);
-  }
-});
+router.get('/', handle((req, res) => res.json({ success: true, data: invoices.list(req.user, req.query.case_id) })));
+router.get('/:id', handle((req, res) => res.json({ success: true, data: invoices.get(req.user, req.params.id) })));
+router.post('/', handle((req, res) => {
+  const id = invoices.create(req.user, req.body);
+  res.json({ success: true, message: 'تم إنشاء الفاتورة بنجاح', data: { id } });
+}));
+router.put('/:id/status', handle((req, res) => {
+  invoices.setStatus(req.user, req.params.id, req.body.status);
+  res.json({ success: true, message: 'تم تحديث حالة الفاتورة بنجاح' });
+}));
+router.put('/:id', handle((req, res) => {
+  invoices.update(req.user, req.params.id, req.body);
+  res.json({ success: true, message: 'تم تحديث بيانات الفاتورة بنجاح' });
+}));
+router.delete('/:id', handle((req, res) => {
+  invoices.remove(req.user, req.params.id);
+  res.json({ success: true, message: 'تم حذف الفاتورة بنجاح' });
+}));
+router.post('/:id/send-email', handle(async (req, res) => {
+  const result = await invoices.send(req.user, req.params.id);
+  res.json({ success: true, message: `تم إرسال الفاتورة بنجاح إلى ${result.recipient}`, data: result });
+}));
 
 export default router;

@@ -55,7 +55,7 @@ router.post('/', (req, res) => {
     const userId = req.user.id;
     const tenantId = getTenantId(req);
 
-    if (!content || content.trim() === '') {
+    if (typeof content !== 'string' || content.trim() === '') {
       return res.status(400).json({ success: false, message: 'محتوى الملاحظة مطلوب' });
     }
 
@@ -64,9 +64,9 @@ router.post('/', (req, res) => {
     }
 
     const result = db.prepare(`
-      INSERT INTO case_notes (case_id, content, note_type, is_private, created_by)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(case_id, content, note_type, is_private ? 1 : 0, userId);
+      INSERT INTO case_notes (case_id, content, note_type, is_private, created_by, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(case_id, content, note_type, is_private ? 1 : 0, userId, tenantId);
 
     const newNoteId = result.lastInsertRowid;
 
@@ -112,7 +112,7 @@ router.put('/:id', (req, res) => {
     const userId = req.user.id;
     const tenantId = getTenantId(req);
 
-    if (!content || content.trim() === '') {
+    if (typeof content !== 'string' || content.trim() === '') {
       return res.status(400).json({ success: false, message: 'محتوى الملاحظة مطلوب' });
     }
 

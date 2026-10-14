@@ -19,7 +19,7 @@ router.get('/', requireAdmin, (req, res, next) => {
     const users = db.prepare(`
       SELECT id, name, email, role, phone, is_active, created_at 
       FROM users 
-      WHERE tenant_id = ? 
+      WHERE tenant_id = ? AND role IN ('admin', 'lawyer')
       ORDER BY id DESC
     `).all(tenantId);
     res.json({ success: true, users });
@@ -144,7 +144,7 @@ router.put('/:id', requireAdmin, (req, res, next) => {
     const tenantId = getTenantId(req);
     const { name, email, role, phone, is_active, password } = req.body;
     const userId = req.params.id;
-    const targetUser = db.prepare('SELECT id, role, is_active FROM users WHERE id = ? AND tenant_id = ?').get(userId, tenantId);
+    const targetUser = db.prepare("SELECT id, role, is_active FROM users WHERE id = ? AND tenant_id = ? AND role IN ('admin', 'lawyer')").get(userId, tenantId);
     if (!targetUser) {
       return res.status(404).json({ message: 'المستخدم غير موجود' });
     }
@@ -194,7 +194,7 @@ router.delete('/:id', requireAdmin, (req, res, next) => {
       return res.status(400).json({ message: 'لا يمكنك حذف الحساب الذي تستخدمه حالياً' });
     }
 
-    const user = db.prepare('SELECT id, name, role, is_active FROM users WHERE id = ? AND tenant_id = ?').get(userId, tenantId);
+    const user = db.prepare("SELECT id, name, role, is_active FROM users WHERE id = ? AND tenant_id = ? AND role IN ('admin', 'lawyer')").get(userId, tenantId);
     if (!user) return res.status(404).json({ message: 'المستخدم غير موجود' });
 
     if (user.role === 'admin' && user.is_active === 1) {
@@ -222,18 +222,25 @@ router.delete('/:id', requireAdmin, (req, res, next) => {
       });
     }
 
-    db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM case_lawyers WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM document_shares WHERE shared_with_user_id = ? OR shared_by_user_id = ?').run(userId, userId);
-    db.prepare('UPDATE tasks SET created_by = ? WHERE created_by = ? AND tenant_id = ?').run(adminId, userId, tenantId);
-    db.prepare('UPDATE tasks SET assigned_to = NULL WHERE assigned_to = ? AND tenant_id = ?').run(userId, tenantId);
-    db.prepare('DELETE FROM time_entries WHERE user_id = ?').run(userId);
+    // Preserve related records if historical ownership prevents account deletion.
+    // Never remove notifications/time entries before knowing the user can be removed.
+    db.transaction(() => {
+      db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
+      db.prepare('DELETE FROM case_lawyers WHERE user_id = ?').run(userId);
+      db.prepare('DELETE FROM document_shares WHERE shared_with_user_id = ? OR shared_by_user_id = ?').run(userId, userId);
+      db.prepare('UPDATE tasks SET created_by = ? WHERE created_by = ? AND tenant_id = ?').run(adminId, userId, tenantId);
+      // Tasks require an assignee; completed tasks transfer to the acting admin.
+      db.prepare('UPDATE tasks SET assigned_to = ? WHERE assigned_to = ? AND tenant_id = ?').run(adminId, userId, tenantId);
+      db.prepare('DELETE FROM time_entries WHERE user_id = ?').run(userId);
 
-    // Delete user
-    db.prepare('DELETE FROM users WHERE id = ? AND tenant_id = ?').run(userId, tenantId);
+      db.prepare('DELETE FROM users WHERE id = ? AND tenant_id = ?').run(userId, tenantId);
+    })();
 
     res.json({ success: true, message: `تم حذف حساب المحامي ${user.name} بنجاح` });
   } catch (err) {
+    if (err.errcode === 787) {
+      return res.status(400).json({ message: 'لا يمكن حذف حساب مرتبط بسجلات المكتب السابقة. يمكنك تعطيل الحساب بدلاً من حذفه، مع الحفاظ على السجلات.' });
+    }
     next(err);
   }
 });

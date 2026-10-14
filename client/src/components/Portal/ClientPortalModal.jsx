@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import Modal from '../Shared/Modal';
 import Button from '../Shared/Button';
 import { UserCheck, Briefcase, Calendar, Receipt, LogOut, CheckCircle2, AlertCircle, Activity } from 'lucide-react';
-import { apiFetch } from '../../api/client';
+import { apiFetch, getServerUrl } from '../../api/client';
+import './ClientPortalModal.css';
 
 export default function ClientPortalModal({ isOpen, onClose }) {
   const [identifier, setIdentifier] = useState('');
@@ -29,7 +30,7 @@ export default function ClientPortalModal({ isOpen, onClose }) {
       }
 
       // Fetch overview using client token
-      const overviewRes = await fetch(`${res.url.split('/api')[0]}/api/portal/overview`, {
+      const overviewRes = await fetch(`${getServerUrl()}/api/portal/overview`, {
         headers: { 'Authorization': `Bearer ${json.token}` }
       });
 
@@ -56,7 +57,7 @@ export default function ClientPortalModal({ isOpen, onClose }) {
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="بوابة الموكل الإلكترونية (Client Self-Service Portal)"
+      title={<span className="client-portal-title">بوابة الموكل الإلكترونية<bdi className="client-portal-subtitle" dir="ltr">Client Self-Service Portal</bdi></span>}
     >
       {!clientData ? (
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '18px', maxWidth: '440px', margin: 'auto', padding: '20px 0' }}>
@@ -134,42 +135,38 @@ export default function ClientPortalModal({ isOpen, onClose }) {
           </div>
 
           {/* Tab Navigation */}
-          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px', overflowX: 'auto' }}>
+          <div className="client-portal-tabs" aria-label="أقسام بوابة الموكل">
             <button
               type="button"
               className={`btn ${activeTab === 'cases' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('cases')}
-              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Briefcase size={16} />
-              قضاياي ({clientData.cases?.length || 0})
+              <span>قضاياي ({clientData.cases?.length || 0})</span>
             </button>
             <button
               type="button"
               className={`btn ${activeTab === 'events' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('events')}
-              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Calendar size={16} />
-              الجلسات القادمة ({clientData.upcoming_events?.length || 0})
+              <span>الجلسات القادمة ({clientData.upcoming_events?.length || 0})</span>
             </button>
             <button
               type="button"
               className={`btn ${activeTab === 'updates' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('updates')}
-              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Activity size={16} />
-              تحديثات القضايا ({clientData.recent_updates?.length || 0})
+              <span>تحديثات القضايا ({clientData.recent_updates?.length || 0})</span>
             </button>
             <button
               type="button"
               className={`btn ${activeTab === 'invoices' ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setActiveTab('invoices')}
-              style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}
             >
               <Receipt size={16} />
-              الفواتير والمطالبات ({clientData.invoices?.length || 0})
+              <span>الفواتير والمطالبات ({clientData.invoices?.length || 0})</span>
             </button>
           </div>
 

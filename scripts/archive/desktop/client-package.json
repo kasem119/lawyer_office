@@ -1,0 +1,76 @@
+{
+  "name": "lawyer-office-client",
+  "version": "1.0.0",
+  "description": "تطبيق سطح المكتب لمنظومة مكتب المحاماة - Client App",
+  "main": "electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test:bundle": "node scripts/check-bundle.mjs",
+    "test:auth-session": "node scripts/auth-session-regression.mjs",
+    "test:mobile": "node scripts/mobile-smoke.mjs",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k -s first \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "pack": "vite build --base=./ && electron-builder --dir",
+    "dist:win": "vite build --base=./ && electron-builder --win nsis",
+    "dist:portable": "vite build --base=./ && electron-builder --win portable",
+    "dist:all": "vite build --base=./ && electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "com.lawyeroffice.desktop",
+    "productName": "منظومة إدارة مكتب المحاماة",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "منظومة مكتب المحاماة",
+      "artifactName": "LawyerOffice-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "LawyerOffice-Portable.${ext}"
+    }
+  },
+  "dependencies": {
+    "lucide-react": "^0.475.0",
+    "pdf-lib": "^1.17.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^10.0.5",
+    "electron": "^34.2.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^6.1.0",
+    "wait-on": "^9.1.0"
+  }
+}

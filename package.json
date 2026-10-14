@@ -5,16 +5,26 @@
   "private": true,
   "scripts": {
     "start:server": "cd server && npm start",
+    "start:legal-retrieval": "node scripts/start-legal-retrieval.mjs",
     "start:client": "cd client && npm run dev",
     "start:web": "npm run build:client && npm run start:server",
-    "start:tray": "cd server && npm run tray",
-    "electron:client": "cd client && npm run electron:dev",
     "build:client": "cd client && npm run build",
-    "dist:win": "cd client && npm run dist:win",
-    "dist:portable": "cd client && npm run dist:portable",
     "setup:firewall": "powershell -ExecutionPolicy Bypass -File server/scripts/setup-firewall.ps1",
     "install:all": "cd server && npm install && cd ../client && npm install",
     "service:install": "cd server && npm run service:install",
-    "service:uninstall": "cd server && npm run service:uninstall"
+    "service:uninstall": "cd server && npm run service:uninstall",
+    "deploy": "python deploy/deploy.py --mode all",
+    "deploy:frontend": "python deploy/deploy.py --mode frontend",
+    "deploy:backend": "python deploy/deploy.py --mode backend",
+    "deploy:status": "python deploy/deploy.py --mode status",
+    "deploy:logs": "python deploy/deploy.py --mode logs",
+    "test:permissions": "npm --prefix server run test:permissions",
+    "test:security": "npm --prefix server run test:security-review",
+    "test:regressions": "npm --prefix server run test:review-regressions",
+    "test:architecture": "node scripts/check-architecture.mjs",
+    "test:domain": "npm --prefix server run test:domain"
+  },
+  "engines": {
+    "node": ">=22.23.0"
   }
 }

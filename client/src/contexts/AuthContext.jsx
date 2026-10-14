@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiFetch } from '../api/client';
+import { disableDeviceNotifications } from '../utils/deviceNotifications';
 
 const AuthContext = createContext();
 
@@ -8,6 +9,18 @@ export function AuthProvider({ children }) {
   const [tenant, setTenant] = useState(null);
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState('');
+
+  useEffect(() => {
+    const expire = event => {
+      setUser(null);
+      setTenant(null);
+      setSubscription(null);
+      setAccessError(event.detail || 'انتهت صلاحية اشتراك المكتب');
+    };
+    window.addEventListener('office-access-expired', expire);
+    return () => window.removeEventListener('office-access-expired', expire);
+  }, []);
 
   useEffect(() => {
     const fetchMe = async () => {
@@ -44,6 +57,7 @@ export function AuthProvider({ children }) {
 
     if (data.accessToken) localStorage.setItem('access_token', data.accessToken);
     if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
+    setAccessError('');
     setUser(data.user);
     setTenant(data.tenant);
     setSubscription(data.subscription);
@@ -60,6 +74,7 @@ export function AuthProvider({ children }) {
 
     if (data.accessToken) localStorage.setItem('access_token', data.accessToken);
     if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken);
+    setAccessError('');
     setUser(data.user);
     setTenant(data.tenant);
     setSubscription(data.subscription);
@@ -67,6 +82,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
+    try { await disableDeviceNotifications(); } catch (err) { console.warn('Notification cleanup:', err.message); }
     try {
       await apiFetch('/auth/logout', { method: 'POST' });
     } catch(e) {}
@@ -81,7 +97,7 @@ export function AuthProvider({ children }) {
   const isSuperAdmin = user?.role === 'super_admin';
 
   return (
-    <AuthContext.Provider value={{ user, tenant, subscription, loading, login, registerOffice, logout, isAdmin, isSuperAdmin }}>
+    <AuthContext.Provider value={{ user, tenant, subscription, loading, accessError, login, registerOffice, logout, isAdmin, isSuperAdmin }}>
       {children}
     </AuthContext.Provider>
   );

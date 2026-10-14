@@ -1,7 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function Modal({ isOpen, onClose, title, children, maxWidth = '650px' }) {
+  const titleId = useId();
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen && onClose) {
@@ -22,9 +24,9 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="animate-fadeIn"
+      className="modal-overlay animate-fadeIn"
       style={{
         position: 'fixed',
         inset: 0,
@@ -40,7 +42,10 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
       onClick={onClose}
     >
       <div
-        className={`glass-card ${isMobile ? 'animate-slideUp' : 'animate-fadeInScale'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`glass-card modal-panel ${isMobile ? 'animate-slideUp' : 'animate-fadeInScale'}`}
         style={{
           width: '100%',
           maxWidth: isMobile ? '100%' : maxWidth,
@@ -70,6 +75,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
         )}
 
         <div
+          className="modal-heading"
           style={{
             display: 'flex',
             justifyContent: 'space-between',
@@ -83,7 +89,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
             zIndex: 10
           }}
         >
-          <h3 style={{ fontSize: isMobile ? '1.1rem' : '1.2rem', color: 'var(--primary)', fontWeight: '700', margin: 0 }}>
+          <h3 id={titleId} style={{ fontSize: isMobile ? '1.1rem' : '1.2rem', color: 'var(--primary)', fontWeight: '700', margin: 0 }}>
             {title}
           </h3>
           <button
@@ -113,7 +119,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = '65
           {children}
         </div>
       </div>
-    </div>
+    </div>, document.body
   );
 }
 

@@ -113,8 +113,10 @@ router.get('/cases/:id', async (req, res) => {
       SELECT case_notes.*, users.name as created_by_name 
       FROM case_notes 
       LEFT JOIN users ON case_notes.created_by = users.id 
-      WHERE case_id = ? ORDER BY created_at DESC
-    `).all(caseId);
+      WHERE case_id = ?
+      ${req.user.role === 'admin' ? '' : 'AND (is_private = 0 OR created_by = ?)'}
+      ORDER BY created_at DESC
+    `).all(...(req.user.role === 'admin' ? [caseId] : [caseId, req.user.id]));
 
     const events = db.prepare(`SELECT * FROM events WHERE case_id = ? AND tenant_id = ? ORDER BY date DESC`).all(caseId, tenantId);
     

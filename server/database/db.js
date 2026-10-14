@@ -14,7 +14,7 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 
 // Initialize Native SQLite Engine with WAL & Foreign Keys
-const rawDb = new DatabaseSync(DB_PATH);
+let rawDb = new DatabaseSync(DB_PATH);
 rawDb.exec(`
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
@@ -106,7 +106,7 @@ function runColumnMigrations() {
       trialEnd.setDate(trialEnd.getDate() + 365);
       rawDb.prepare(`
         INSERT INTO tenants (id, slug, name, owner_name, email, phone, city, plan, status, trial_ends_at, subscription_ends_at)
-        VALUES (1, 'default', 'المكتب الرئيسي للمحاماة', 'المدير العام', 'admin@lawyer-system.local', '0910000000', 'طرابلس', 'pro', 'active', ?, ?)
+        VALUES (1, 'default', 'المكتب الرئيسي للمحاماة', 'المدير العام', 'kasemgammo15@gmail.com', '0911225020 / 0921225020', 'طرابلس', 'pro', 'active', ?, ?)
       `).run(trialEnd.toISOString(), trialEnd.toISOString());
     }
   } catch (err) {
@@ -218,11 +218,21 @@ function sanitizeParams(params) {
 
 // Statement Wrapper to preserve API compatibility
 class StatementWrapper {
-  constructor(rawStmt) {
+  constructor(rawStmt, sql) {
     this.rawStmt = rawStmt;
+    this.sql = sql;
+    this.connection = rawDb;
+  }
+
+  refresh() {
+    if (this.connection !== rawDb) {
+      this.rawStmt = rawDb.prepare(this.sql);
+      this.connection = rawDb;
+    }
   }
 
   run(...params) {
+    this.refresh();
     const actual = sanitizeParams(params);
     const result = this.rawStmt.run(...actual);
     return {
@@ -232,20 +242,25 @@ class StatementWrapper {
   }
 
   get(...params) {
+    this.refresh();
     const actual = sanitizeParams(params);
     return this.rawStmt.get(...actual);
   }
 
   all(...params) {
+    this.refresh();
     const actual = sanitizeParams(params);
     return this.rawStmt.all(...actual);
   }
 }
 
 const db = {
+  close() {
+    rawDb.close();
+  },
   prepare(sql) {
     const stmt = rawDb.prepare(sql);
-    return new StatementWrapper(stmt);
+    return new StatementWrapper(stmt, sql);
   },
   exec(sql) {
     rawDb.exec(sql);
@@ -270,7 +285,35 @@ const db = {
     if (typeof backup === 'function') {
       return await backup(rawDb, destinationPath);
     } else {
-      fs.copyFileSync(DB_PATH, destinationPath);
+      throw new Error('Atomic SQLite backup is unavailable in this Node runtime');
+    }
+  },
+  // Synchronous: no request can run between closing and reopening the connection.
+  restoreFrom(snapshotPath) {
+    if (DB_PATH === ':memory:') throw new Error('Restore requires a file database');
+    const rollbackPath = `${DB_PATH}.restore-rollback`;
+    const open = () => {
+      rawDb = new DatabaseSync(DB_PATH);
+      rawDb.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
+    };
+    const checkpoint = rawDb.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get();
+    if (checkpoint.busy) throw new Error('Database is busy; restore must wait for other connections');
+    rawDb.close();
+    try {
+      fs.copyFileSync(DB_PATH, rollbackPath);
+      fs.copyFileSync(snapshotPath, DB_PATH);
+      open();
+      runColumnMigrations();
+      createIndexes();
+      fs.unlinkSync(rollbackPath);
+    } catch (error) {
+      try { rawDb.close(); } catch {}
+      for (const suffix of ['-wal', '-shm']) {
+        try { fs.unlinkSync(`${DB_PATH}${suffix}`); } catch {}
+      }
+      if (fs.existsSync(rollbackPath)) fs.copyFileSync(rollbackPath, DB_PATH);
+      open();
+      throw error;
     }
   }
 };
