@@ -6,10 +6,19 @@ import { authenticateToken } from '../middleware/auth.js';
 import { requireAdmin } from '../middleware/permissions.js';
 import { runBackup, restoreBackup } from '../services/backupService.js';
 import { BACKUPS_DIR } from '../config.js';
+import db from '../database/db.js';
 
 const router = express.Router();
 router.use(authenticateToken);
 router.use(requireAdmin);
+// These backups contain the entire server database, not one tenant's records.
+// Keep the single-office workflow; multi-office snapshots are server operations.
+router.use((req, res, next) => {
+  if (db.prepare('SELECT COUNT(*) AS count FROM tenants').get().count > 1) {
+    return res.status(403).json({ message: 'النسخ الاحتياطية الشاملة في بيئة متعددة المكاتب تتم على مستوى الخادم فقط' });
+  }
+  next();
+});
 
 const upload = multer({
   dest: BACKUPS_DIR,
@@ -84,20 +93,20 @@ router.post('/restore', upload.single('backup_file'), async (req, res, next) => 
       return res.status(400).json({ success: false, message: 'يرجى تحديد ملف النسخة الاحتياطية للاستعادة' });
     }
 
-    const result = await restoreBackup(targetFile);
-
-    // If it was an uploaded file, clean it up after restore
-    if (req.file) {
-      try { fs.unlinkSync(req.file.path); } catch {}
-    }
+    const format = req.file ? path.extname(req.file.originalname).toLowerCase() : path.extname(targetFile).toLowerCase();
+    const result = await restoreBackup(targetFile, format);
 
     if (result.success) {
-      res.json({ success: true, message: result.message });
+      res.json({ success: true, message: result.message, safetyBackup: result.safetyBackup });
     } else {
       res.status(500).json({ success: false, message: result.error });
     }
   } catch (err) {
     next(err);
+  } finally {
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+    }
   }
 });
 
